@@ -46,3 +46,4 @@
 2023-04-11 12:44:35 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
 2023-04-11 12:44:35 - Cant Bind  2 udp servers on same computer
 2023-04-11 12:44:35 - udp server off
+2023-04-11 12:51:03 - Go to listen

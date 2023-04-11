@@ -78,37 +78,38 @@ def udp_server(cli_path, local_files, exit_all):
         bind_ok = True
         print('udp server is up')
     except socket.error as e:
-        udp_log("server", " Sock error:" + str(e.args))
+        udp_log("server", " Sock error:" + str(e))
         if e.errno == 10048:
             udp_log("server", "Cant Bind  2 udp servers on same computer")
 
     while not exit_all and bind_ok:
         try:
             udp_log("server", "Go to listen")
-            data, addr = udp_sock.recvfrom(1024)
+            bin_data, addr = udp_sock.recvfrom(1024)
+            data = bin_data.decode()
             if data == "":
                 continue
             if DEBUG:
-                udp_log("server", " Got UDP Request " + data.decode())
+                udp_log("server", " Got UDP Request " + data)
             if data[:3] == "FRQ":
                 print('got request')
-                fields = data[4:].split(b"|")
+                fields = data[4:].split("|")
                 fn = fields[0]
                 fsize = int(fields[1])
 
-            if fn in local_files.keys():
-                if local_files[fn].size == fsize and fsize > 0:
-                    fullname = os.path.join(cli_path, fn)
+                if fn in local_files.keys():
+                    if local_files[fn].size == fsize and fsize > 0:
+                        fullname = os.path.join(cli_path, fn)
 
-                    if TEST:
-                        udp_file_send_test(udp_sock, fullname, fsize, addr)
+                        if TEST:
+                            udp_file_send_test(udp_sock, fullname, fsize, addr)
+                        else:
+                            udp_file_send(udp_sock, fullname, fsize, addr)
+                        time.sleep(5)
                     else:
-                        udp_file_send(udp_sock, fullname, fsize, addr)
-                    time.sleep(5)
+                        udp_log("server", "sizes not ok")
                 else:
-                    udp_log("server", "sizes not ok")
-            else:
-                udp_log("server", "file not found " + fn)
+                    udp_log("server", "file not found " + fn)
         except socket.error as e:
             print("-Sock error:" + str(e.args) + " " + e.message)
             if e.errno == 10048:
@@ -141,7 +142,7 @@ def udp_file_send_test(udp_sock, fullname, fsize, addr):
             m = hashlib.md5()
             m.update(bin_data)
             checksum = m.hexdigest()
-            header = str(len(bin_data)).zfill(9) + "," + str(pack_cnt).zfill(8) + "," + checksum
+            header = (str(len(bin_data)).zfill(9) + "," + str(pack_cnt).zfill(8) + "," + checksum).encode()
             bin_data = header + bin_data
             keep[pack_cnt] = bin_data
             pack_cnt += 1
@@ -182,7 +183,7 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
             m = hashlib.md5()
             m.update(bin_data)
             checksum = m.hexdigest()
-            header = str(len(bin_data)).zfill(9) + "," + str(pack_cnt).zfill(8) + "," + checksum
+            header = (str(len(bin_data)).zfill(9) + "," + str(pack_cnt).zfill(8) + "," + checksum).encode()
             bin_data = header + bin_data
             try:
                 udp_sock.sendto(bin_data, addr)
