@@ -1,0 +1,48 @@
+2023-04-11 12:21:33 - Go to listen
+2023-04-11 12:21:48 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:21:48 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:21:48 - udp server off
+2023-04-11 12:23:55 - Go to listen
+2023-04-11 12:23:57 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:23:57 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:23:57 - udp server off
+2023-04-11 12:26:29 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:26:29 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:26:29 - udp server off
+2023-04-11 12:26:35 -  Got UDP Request FRQ|a.txt|0
+2023-04-11 12:27:06 - Go to listen
+2023-04-11 12:27:09 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:27:09 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:27:09 - udp server off
+2023-04-11 12:27:40 -  Got UDP Request FRQ|a.txt|0
+2023-04-11 12:27:40 - General error cannot access local variable 'fn' where it is not associated with a value
+2023-04-11 12:27:40 - udp server off
+2023-04-11 12:31:06 - Go to listen
+2023-04-11 12:31:08 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:31:08 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:31:08 - udp server off
+2023-04-11 12:31:39 - Go to listen
+2023-04-11 12:31:44 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:31:44 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:31:44 - udp server off
+2023-04-11 12:31:49 -  Got UDP Request FRQ|a.txt|0
+2023-04-11 12:31:49 - General error cannot access local variable 'fn' where it is not associated with a value
+2023-04-11 12:31:49 - udp server off
+2023-04-11 12:34:43 - Go to listen
+2023-04-11 12:34:50 -  Got UDP Request FRQ|a.txt|0
+2023-04-11 12:34:50 - General error cannot access local variable 'fn' where it is not associated with a value
+2023-04-11 12:34:50 - udp server off
+2023-04-11 12:36:16 - Go to listen
+2023-04-11 12:36:21 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:36:21 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:36:21 - udp server off
+2023-04-11 12:37:44 -  Got UDP Request FRQ|a.txt|0
+2023-04-11 12:37:44 - General error cannot access local variable 'fn' where it is not associated with a value
+2023-04-11 12:37:44 - udp server off
+2023-04-11 12:40:41 - Go to listen
+2023-04-11 12:43:20 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:43:20 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:43:20 - udp server off
+2023-04-11 12:44:35 -  Sock error:(10048, 'Only one usage of each socket address (protocol/network address/port) is normally permitted', None, 10048, None)
+2023-04-11 12:44:35 - Cant Bind  2 udp servers on same computer
+2023-04-11 12:44:35 - udp server off

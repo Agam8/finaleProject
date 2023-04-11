@@ -1,0 +1,12 @@
+2023-04-11 12:26:35 - Sent FRQ|a.txt|0 to 127.0.0.1 5501
+2023-04-11 12:26:35 - Send failed or size = 0
+2023-04-11 12:27:40 - Sent FRQ|a.txt|0 to 127.0.0.1 5501
+2023-04-11 12:27:40 - Send failed or size = 0
+2023-04-11 12:28:59 - Sent FRQ|a.txt|0 to 127.0.0.1 5501
+2023-04-11 12:28:59 - Send failed or size = 0
+2023-04-11 12:31:49 - Sent FRQ|a.txt|0 to 127.0.0.1 5501
+2023-04-11 12:31:49 - Send failed or size = 0
+2023-04-11 12:34:50 - Sent FRQ|a.txt|0 to 127.0.0.1 5501
+2023-04-11 12:34:50 - Send failed or size = 0
+2023-04-11 12:37:44 - Sent FRQ|a.txt|0 to 127.0.0.1 5501
+2023-04-11 12:37:44 - Send failed or size = 0
