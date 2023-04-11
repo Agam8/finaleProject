@@ -1,4 +1,5 @@
 import sqlite3
+import hashlib
 
 __author__ = 'agam'
 
@@ -16,11 +17,7 @@ class User(object):
         self.average_duration = average_duration
 
     def __str__(self):
-        return f'User: {self.id}\n' \
-            f'username: {self.username}\n' \
-            f'email: {self.email}\n' \
-            f'password: ***\n' \ 
-            f'logged rn?: {self.is_logged}'
+        pass
 
 
 
@@ -213,7 +210,7 @@ class SongsORM():
         self.conn (need DB file name)
         and self.cursor
         """
-        self.conn = sqlite3.connect('Users.db')
+        self.conn = sqlite3.connect('database_server.db')
         self.current = self.conn.cursor()
 
     def close_DB(self):
@@ -231,29 +228,37 @@ class SongsORM():
         songs = res.fetchall()
         self.close_DB()
         return songs
+
     def get_song_by_name(self, name):
         self.open_DB()
         song = ''
-        sql = "SELECT *" \ 
-              "FROM songs" \ 
-              f"WHEN name == {name};"
+        sql = "SELECT * " \
+              "FROM songs" \
+              "WHERE name == {name};"
         res = self.current.execute(sql)
         song = res.fetchall()
         self.close_DB()
         return song
+    def add_song(self, song):
+        pass
+        self.open_DB()
+        added = False
+        sql = "SELECT *" \
+              "FROM songs" \
+              f"WHERE name ==;"
+
 
 def main_test():
-    db = StudentSchoolORM()
-    students = db.get_students_in_grade(12)
-    for s in students:
-        print(s)
-    # new_stu = Student("4567891", "Neta", "Lasser", "053271101", 10, "Galili")
-    # print(db.insert_new_student(new_stu))
-    print(db.update_grades())
-    # print(db.update_phone("1234567","0521234567"))
-    # print(db.get_principle_and_students("Herzog"))
-    # print(db.transfer_schools("1234567","Galili","Herzog"))
+    #db = SongsORM()
+    #songs = db.get_all_songs()
+    #for s in songs:
+     #   print(s)
 
+    with open(r'E:\finalProject\client_songs\Microscopes-Those_Summer_Days.mp3','rb') as bin_data:
+        m = hashlib.md5()
+        m.update(bin_data.read())
+        checksum = m.hexdigest()
+        print(checksum)
 
 if __name__ == "__main__":
     main_test()

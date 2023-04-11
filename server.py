@@ -42,7 +42,6 @@ def handle_client(sock, tid, files, cli_ip):
             break
     sock.close()
 
-
 def do_action(data, files, cli_ip):
     """
      what client ask and fill to send with the answer
@@ -73,6 +72,7 @@ def do_action(data, files, cli_ip):
 
             for i in range(length):
                 info = fields[i + 1].split("~")
+
                 if info[0] not in files.keys():
                     files[info[0]] = Shared_file(info[0], info[1], cli_ip)
                     if DEBUG:
