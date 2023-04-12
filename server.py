@@ -7,12 +7,14 @@ from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from Shared_file import Shared_file
 from uuid import uuid4
+import sqlCommands
 
 DEBUG = True
 exit_all = False
-
+songs_database = sqlCommands.SongsORM('server_database.db')
 files_lock = threading.Lock()
 
+"""
 def create_token(file_name, files):
     token = str(uuid4())
     now = datetime.datetime.now()
@@ -25,10 +27,10 @@ def create_token(file_name, files):
         return token
     files_lock.release()
     return None
+"""
 
 
-
-def handle_client(sock, tid, files, cli_ip):
+def handle_client(sock, tid, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
     while not exit_all:
@@ -38,7 +40,7 @@ def handle_client(sock, tid, files, cli_ip):
                 print("Error: Seens Client DC")
                 break
 
-            to_send = do_action(data, files, cli_ip)
+            to_send = do_action(data, cli_ip)
 
             send_with_size(sock, to_send)
 
@@ -56,7 +58,7 @@ def handle_client(sock, tid, files, cli_ip):
             break
     sock.close()
 
-def do_action(data, files, cli_ip):
+def do_action(data, cli_ip):
     """
      what client ask and fill to send with the answer
     """
@@ -75,31 +77,22 @@ def do_action(data, files, cli_ip):
         answer = action + "_BACK"
 
         if action == "DIR":
-            for k, v in files.items():
-                answer += "|" + str(v)
+            songs = songs_database.get_all_songs()
+            for song in songs:
+                answer += "{}~{}~{}~{}~{}~{}".format("|" + song[0], song[1], song[2], song[3], song[4], song[5])
             to_send = answer
 
         elif action == "SHR":
-            length = int(fields[0])
-            print("Got %d files" % length)
             files_lock.acquire()
-
-            for i in range(length):
-                info = fields[i + 1].split("~")
-
-                if info[0] not in files.keys():
-                    files[info[0]] = Shared_file(info[0], info[1], cli_ip)
-                    if DEBUG:
-                        print("got new file" + str(files[info[0]]))
-                else:
-                    print("file already exist " + info[0])
+            songs_database.add_client_folder(fields, cli_ip)
             files_lock.release()
-            print("Len of files" + str(len(files)))
             to_send = answer + "|Ok"
         elif action == "LNK":
             fn = fields[0]
-            if fn in files.keys():
-                to_send = answer + "|" + fn + "|" + files[fn].ip + "|" + str(files[fn].size)
+            exists = songs_database.song_exists(fn)
+            if exists:
+                song = songs_database.get_songs_by_name(fn)
+                to_send = answer + "|" + fn + "|" + song[4] + "|" + song[5] # file name, ip, size
             else:
                 to_send = "Err___R|File not exist in srv list"
         elif action == "RUL":
@@ -112,7 +105,7 @@ def do_action(data, files, cli_ip):
     return to_send
 
 
-def q_manager(tid, q, files):
+def q_manager(tid, q):
     global exit_all
 
     print("manager start:" + str(tid))
@@ -126,17 +119,8 @@ def q_manager(tid, q, files):
 
 
 def load_files_from_server_folder(srv_path):
-    d = {}
-
-    for f in os.listdir(srv_path):
-        full_name = os.path.join(srv_path, f)
-        if DEBUG:
-            print("f " + full_name + " " + str(os.path.isfile(full_name)))
-        if os.path.isfile(full_name):
-            d[f] = Shared_file(f, os.path.getsize(full_name), "0.0.0.0")
-
-    return d
-
+    global songs_database
+    songs_database.add_server_folder(srv_path)
 
 def main(srv_path):
     global exit_all
@@ -145,7 +129,7 @@ def main(srv_path):
     q = queue.Queue()
     manager = threading.Thread(target=q_manager, args=(0, q, srv_path))
 
-    files = load_files_from_server_folder(srv_path)
+    load_files_from_server_folder(srv_path)
 
     s = socket.socket()
     s.bind(("0.0.0.0", 5500))
@@ -156,7 +140,7 @@ def main(srv_path):
     i = 1
     while True:
         cli_s, addr = s.accept()
-        t = threading.Thread(target=handle_client, args=(cli_s, i, files, addr[0]))
+        t = threading.Thread(target=handle_client, args=(cli_s, i, addr[0]))
         t.start()
         i += 1
 

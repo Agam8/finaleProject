@@ -368,7 +368,7 @@ def main(cli_path, server_ip):
             for f in fields:
                 info = f.split("~")
                 if len(info) > 1:
-                    print("\t" + info[0] + " " + info[1] + " " + info[2] + "\n", end=' ')
+                    print("\t{} {} {} {} {}\n".format(info[0], info[1], info[2], info[3], info[4]), end=' ')
                 else:
                     print("\tserver's directory is empty\n")
         elif action == "SHR_BACK":
