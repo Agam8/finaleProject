@@ -2,21 +2,35 @@ __author__ = 'Yossi'
 
 import socket
 import os
-import queue, threading, time, random
+import queue, threading, time, datetime
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from Shared_file import Shared_file
+from uuid import uuid4
 
 DEBUG = True
 exit_all = False
 
 files_lock = threading.Lock()
 
+def create_token(file_name, files):
+    token = str(uuid4())
+    now = datetime.datetime.now()
+    expiry_time = now + datetime.timedelta(hours=2)
+    files_lock.acquire()
+    if file_name in files:
+        files[file_name].token = token
+        files[file_name].expiry_time = expiry_time
+        files_lock.release()
+        return token
+    files_lock.release()
+    return None
+
+
 
 def handle_client(sock, tid, files, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
-
     while not exit_all:
         try:
             data = recv_by_size(sock)

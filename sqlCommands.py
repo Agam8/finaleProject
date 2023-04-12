@@ -184,68 +184,100 @@ class UsersORM():
             return False
 
 class Song(object):
-    def __init__(self, id, name, artist, size, checksum):
-        self.id = id
-        self.name = name
+    def __init__(self, file_name, song_name, artist, ip, size, genre = None, checksum = None):
+        self.file_name = file_name
+        self.song_name = song_name
         self.artist = artist
+        self.genre = genre
+        self.ip = ip
         self.size = size
         self.checksum = checksum
 
 
     def __str__(self):
-        return f'song: {self.id}\n' \
-           f'name: {self.name}\n' \
+        return f'song: {self.file_name}\n' \
+           f'name: {self.song_name}\n' \
            f'artist: {self.artist}\n' \
            f'size: {self.size}\n' \
            f'checksum: {self.checksum}'
 
-class SongsORM():
-    def __init__(self):
-        self.conn = None  # will store the DB connection
-        self.cursor = None  # will store the DB connection cursor
 
-    def open_DB(self):
-        """
-        will open DB file and put value in:
-        self.conn (need DB file name)
-        and self.cursor
-        """
-        self.conn = sqlite3.connect('database_server.db')
-        self.current = self.conn.cursor()
+class SongsORM:
+    def __init__(self, db_file):
+        self.db_file = db_file
+        self.conn = None
+        self.cursor = None
 
-    def close_DB(self):
+    def connect(self):
+        self.conn = sqlite3.connect(self.db_file)
+        self.cursor = self.conn.cursor()
+
+    def disconnect(self):
+        self.cursor.close()
         self.conn.close()
 
     def commit(self):
         self.conn.commit()
 
-    def get_all_songs(self):
-        self.open_DB()
-        songs = []
-        sql = "SELECT *" \
-              "FROM songs;"
-        res = self.current.execute(sql)
-        songs = res.fetchall()
-        self.close_DB()
-        return songs
+    def create_table(self):
+        self.connect()
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS songs (
+                file_name TEXT PRIMARY KEY,
+                song_name TEXT,
+                artist TEXT,
+                genre TEXT,
+                ip TEXT,
+                size INTEGER,
+                checksum TEXT
+            )
+        """)
+        self.disconnect()
 
-    def get_song_by_name(self, name):
-        self.open_DB()
-        song = ''
-        sql = "SELECT * " \
-              "FROM songs" \
-              "WHERE name == {name};"
-        res = self.current.execute(sql)
-        song = res.fetchall()
-        self.close_DB()
-        return song
     def add_song(self, song):
-        pass
-        self.open_DB()
-        added = False
-        sql = "SELECT *" \
-              "FROM songs" \
-              f"WHERE name ==;"
+        self.connect()
+        try:
+            self.cursor.execute("""
+                INSERT INTO songs (
+                    file_name, song_name, artist, genre, ip, size, checksum
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (song.file_name, song.song_name, song.artist, song.genre, song.ip, song.size, song.checksum))
+            self.commit()
+            return True
+        except Exception as e:
+            print(e)
+            return False
+        finally:
+            self.disconnect()
+
+    def get_all_songs(self):
+        self.connect()
+        self.cursor.execute("SELECT * FROM songs")
+        rows = self.cursor.fetchall()
+        self.disconnect()
+        return [Song(*row) for row in rows]
+
+    def get_songs_by_name(self, name):
+        self.connect()
+        self.cursor.execute("SELECT * FROM songs WHERE song_name LIKE ?", ('%' + name + '%',))
+        rows = self.cursor.fetchall()
+        self.disconnect()
+        return [Song(*row) for row in rows]
+
+    def get_songs_by_artist(self, artist):
+        self.connect()
+        self.cursor.execute("SELECT * FROM songs WHERE artist LIKE ?", ('%' + artist + '%',))
+        rows = self.cursor.fetchall()
+        self.disconnect()
+        return [Song(*row) for row in rows]
+
+    def get_songs_by_genre(self, genre):
+        self.connect()
+        self.cursor.execute("SELECT * FROM songs WHERE genre LIKE ?", ('%' + genre + '%',))
+        rows = self.cursor.fetchall()
+        self.disconnect()
+        return [Song(*row) for row in rows]
+
 
 
 def main_test():
