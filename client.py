@@ -71,7 +71,7 @@ def load_local_files(cli_path):
         full_name = os.path.join(cli_path, f)
         if DEBUG:
             print("f " + full_name + " " + str(os.path.isfile(full_name)))
-        if os.path.isfile(full_name):
+        if os.path.isfile(full_name) and f.endswith(".mp3"):
             d[f] = Song(f,input(f'{f} name: '),input(f'{f} artist: '),input(f'{f} genre: '),size=os.path.getsize(full_name))
     return d
 

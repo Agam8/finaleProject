@@ -1,5 +1,4 @@
 import sqlite3
-import hashlib
 import os
 
 __author__ = 'agam'
@@ -200,8 +199,7 @@ class Song(object):
                f'size: {self.size}\n'
 
 
-
-class SongsORM:
+class SongsORM():
     def __init__(self, db_file):
         self.db_file = db_file
         self.conn = None
@@ -217,20 +215,6 @@ class SongsORM:
 
     def commit(self):
         self.conn.commit()
-
-    def create_table(self):
-        self.open_DB()
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS songs (
-                file_name TEXT PRIMARY KEY,
-                song_name TEXT,
-                artist TEXT,
-                genre TEXT,
-                ip TEXT,
-                size INTEGER
-            )
-        """)
-        self.close_DB()
 
     def add_song(self, song):
         self.open_DB()
@@ -250,28 +234,35 @@ class SongsORM:
 
     def get_all_songs(self):
         self.open_DB()
-        self.cursor.execute("SELECT * FROM songs")
+        self.cursor.execute("SELECT * FROM songs;")
         rows = self.cursor.fetchall()
         self.close_DB()
         return [Song(*row) for row in rows]
 
     def get_songs_by_name(self, name):
         self.open_DB()
-        self.cursor.execute("SELECT * FROM songs WHERE song_name LIKE ?", ('%' + name + '%',))
+        self.cursor.execute("SELECT * FROM songs WHERE song_name LIKE ?;", ('%' + name + '%',))
+        rows = self.cursor.fetchall()
+        self.close_DB()
+        return [Song(*row) for row in rows]
+
+    def get_song_by_file(self, file_name):
+        self.open_DB()
+        self.cursor.execute(f"SELECT * FROM songs WHERE file_name == '{file_name}';")
         rows = self.cursor.fetchall()
         self.close_DB()
         return [Song(*row) for row in rows]
 
     def get_songs_by_artist(self, artist):
         self.open_DB()
-        self.cursor.execute("SELECT * FROM songs WHERE artist LIKE ?", ('%' + artist + '%',))
+        self.cursor.execute("SELECT * FROM songs WHERE artist LIKE '?';", ('%' + artist + '%',))
         rows = self.cursor.fetchall()
         self.close_DB()
         return [Song(*row) for row in rows]
 
     def get_songs_by_genre(self, genre):
         self.open_DB()
-        self.cursor.execute("SELECT * FROM songs WHERE genre LIKE ?", ('%' + genre + '%',))
+        self.cursor.execute("SELECT * FROM songs WHERE genre LIKE '?';", ('%' + genre + '%',))
         rows = self.cursor.fetchall()
         self.close_DB()
         return [Song(*row) for row in rows]
@@ -282,7 +273,7 @@ class SongsORM:
               "FROM songs " \
               f"WHERE file_name == '{file_name}';"
 
-        print('executing:',sql)
+        # print('executing:',sql)
         res = self.cursor.execute(sql)
         exists = bool(res.fetchone())
         self.close_DB()
@@ -326,7 +317,7 @@ class SongsORM:
             if os.path.isfile(full_name) and f.endswith(".mp3"):
                 exists = self.song_exists(full_name)
                 if not exists:
-                    new_song = Song(full_name, 'unknown', 'unknown', 'unknown', '0.0.0.0', os.path.getsize(full_name))
+                    new_song = Song(full_name, 'unknown', 'unknown', 'unknown', '0.0.0.0', str(os.path.getsize(full_name)))
                     self.add_song(new_song)
                 else:
                     print(f, 'already exists')
@@ -338,7 +329,7 @@ class SongsORM:
               f"file_name LIKE '%{keyword}%' OR " \
               f"song_name LIKE '%{keyword}%' OR " \
               f"artist LIKE '%{keyword}%' OR " \
-              f"genre LIKE '%{keyword}%'"
+              f"genre LIKE '%{keyword}%';"
         res = self.cursor.execute(sql)
         songs = res.fetchall()
         self.close_DB()
@@ -347,16 +338,21 @@ class SongsORM:
 def main():
     # create an instance of the SongsORM class and create the songs table
     songs_orm = SongsORM('server_database.db')
-    songs_orm.create_table()
+    # songs_orm.create_table()
 
     # create a song object and add it to the songs table
-    song = Song('song_file.mp3', 'Song Name', 'Artist Name', '192.168.0.1', 1024, 'Pop', 'abcd1234')
-    songs_orm.add_song(song)
+    # song = Song('song_file.mp3', 'Song Name', 'Artist Name',  'Pop', '192.168.0.1', '1024')
+    # songs_orm.add_song(song)
 
     # get all the songs from the songs table
-    all_songs = songs_orm.get_all_songs()
+    # all_songs = songs_orm.get_all_songs()
+    print(songs_orm.song_exists('Brakhage - No Coincidence.mp3'))
+    print(songs_orm.get_song_by_file('Brakhage - No Coincidence.mp3'))
 
-    # search for songs by name
+
+
+
+"""    # search for songs by name
     name_search_results = songs_orm.get_songs_by_name('song')
 
     # search for songs by artist
@@ -366,7 +362,7 @@ def main():
     genre_search_results = songs_orm.get_songs_by_genre('pop')
 
     print(all_songs, name_search_results, artist_search_results,genre_search_results)
-
+"""
 
 if __name__ == "__main__":
     main()
