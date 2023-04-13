@@ -78,8 +78,11 @@ def do_action(data, cli_ip):
 
         if action == "DIR":
             songs = songs_database.get_all_songs()
+            print(songs)
+            if len(songs) == 0:
+                answer += ''
             for song in songs:
-                answer += "{}~{}~{}~{}~{}~{}".format("|" + song[0], song[1], song[2], song[3], song[4], song[5])
+                answer += "{}~{}~{}~{}~{}~{}".format("|" + song.file_name, song.song_name, song.artist, song.genre, song.ip, song.size)
             to_send = answer
 
         elif action == "SHR":

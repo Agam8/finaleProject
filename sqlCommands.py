@@ -184,21 +184,21 @@ class UsersORM():
 
 
 class Song(object):
-    def __init__(self, file_name, song_name, artist, genre, ip, size, checksum=None):
+    def __init__(self, file_name, song_name, artist, genre, ip = '', size = ''):
         self.file_name = file_name
         self.song_name = song_name
         self.artist = artist
         self.genre = genre
         self.ip = ip
         self.size = size
-        self.checksum = checksum
+
 
     def __str__(self):
         return f'song: {self.file_name}\n' \
                f'name: {self.song_name}\n' \
                f'artist: {self.artist}\n' \
-               f'size: {self.size}\n' \
-               f'checksum: {self.checksum}'
+               f'size: {self.size}\n'
+
 
 
 class SongsORM:
@@ -227,8 +227,7 @@ class SongsORM:
                 artist TEXT,
                 genre TEXT,
                 ip TEXT,
-                size INTEGER,
-                checksum TEXT
+                size INTEGER
             )
         """)
         self.close_DB()
@@ -238,9 +237,9 @@ class SongsORM:
         try:
             self.cursor.execute("""
                 INSERT INTO songs (
-                    file_name, song_name, artist, genre, ip, size, checksum
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (song.file_name, song.song_name, song.artist, song.genre, song.ip, song.size, song.checksum))
+                    file_name, song_name, artist, genre, ip, size
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (song.file_name, song.song_name, song.artist, song.genre, song.ip, song.size))
             self.commit()
             return True
         except Exception as e:
@@ -281,8 +280,10 @@ class SongsORM:
         self.open_DB()
         sql = "SELECT * " \
               "FROM songs " \
-              "WHERE file_name == ?;"
-        res = self.cursor.execute(sql, file_name)
+              f"WHERE file_name == '{file_name}';"
+
+        print('executing:',sql)
+        res = self.cursor.execute(sql)
         exists = bool(res.fetchone())
         self.close_DB()
         return exists
@@ -298,17 +299,24 @@ class SongsORM:
     def add_client_folder(self, fields, cli_ip):
         length = int(fields[0])
         print("Got %d files" % length)
-        for i in range(length):
-            info = fields[i + 1].split(
-                "~")  # info[0]: file name, info[1]: song name, info[2]: artist, info[3]: genre, info[4]: size
-            exists = self.song_exists(info[0])
+        try:
+            for i in range(length):
+                #print("splitting by ~")
+                info = fields[i + 1].split("~")  # info[0]: file name, info[1]: song name, info[2]: artist, info[3]: genre, info[4]: size
+                #print('song ', i + 1, ':', info)
 
-            if not exists:
-                new_song = Song(info[0], info[1], info[2], info[3], cli_ip, info[4])
-                self.add_song(new_song)
-                print("got new file" + str(new_song))
-            else:
-                print("file already exist " + info[0])
+
+                print('checking if ',info[0],' exsits')
+                exists = self.song_exists(info[0])
+
+                if not exists:
+                    new_song = Song(info[0], info[1], info[2], info[3], cli_ip, info[4])
+                    self.add_song(new_song)
+                    print("got new file" + str(new_song))
+                else:
+                    print("file already exist " + info[0])
+        except Exception as e:
+            print("adding client's folder through exception: ", e)
         print("Len of files" + str(self.count_songs()))
 
     def add_server_folder(self,srv_path):
@@ -336,9 +344,9 @@ class SongsORM:
         self.close_DB()
         return songs
 
-def main_test():
+def main():
     # create an instance of the SongsORM class and create the songs table
-    songs_orm = SongsORM('database_server.db')
+    songs_orm = SongsORM('server_database.db')
     songs_orm.create_table()
 
     # create a song object and add it to the songs table
@@ -357,6 +365,8 @@ def main_test():
     # search for songs by genre
     genre_search_results = songs_orm.get_songs_by_genre('pop')
 
+    print(all_songs, name_search_results, artist_search_results,genre_search_results)
+
 
 if __name__ == "__main__":
-    main_test()
+    main()

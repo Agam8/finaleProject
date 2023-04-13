@@ -9,8 +9,7 @@ import hashlib
 import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
-import playsound
-
+from sqlCommands import Song
 
 
 DEBUG = True
@@ -45,27 +44,26 @@ def manu(cli_path, local_files):
         return "DIR"
 
     elif data == "2":
-        d = load_local_files(cli_path)
         to_send = "SHR|" + str(len(local_files))
-        for k, v in local_files.items():
-            to_send += "|" + v.name + "~" + str(v.size)
+        for file, song in local_files.items():
+            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}"
         return to_send
     elif data == "3":
         fn = input("enter file name>")
         return "LNK|" + fn
     elif data == "4":
         sn = input("enter song file name>")
-        play_song(cli_path, sn)
+        # play_song(cli_path, sn)
         return "RULIVE"
 
     else:
         return "RULIVE"
 
-
+"""
 def play_song(cli_path, song_name):
     print(f"playing {song_name} from your library")
     playsound.playsound(os.path.join(cli_path, song_name))
-
+"""
 
 def load_local_files(cli_path):
     d = {}
@@ -74,7 +72,7 @@ def load_local_files(cli_path):
         if DEBUG:
             print("f " + full_name + " " + str(os.path.isfile(full_name)))
         if os.path.isfile(full_name):
-            d[f] = Shared_file(f, os.path.getsize(full_name), "!")
+            d[f] = Song(f,input(f'{f} name: '),input(f'{f} artist: '),input(f'{f} genre: '),size=os.path.getsize(full_name))
     return d
 
 
