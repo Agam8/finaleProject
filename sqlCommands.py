@@ -346,9 +346,9 @@ class SongsORM():
               f"artist LIKE '%{keyword}%' OR " \
               f"genre LIKE '%{keyword}%';"
         res = self.cursor.execute(sql)
-        songs = res.fetchall()
+        rows = res.fetchall()
         self.close_DB()
-        return songs
+        return [Song(*row) for row in rows]
 
 def main():
     # create an instance of the SongsORM class and create the songs table
