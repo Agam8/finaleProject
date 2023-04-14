@@ -3,7 +3,6 @@ __author__ = 'Yossi'
 import datetime
 
 import socket, time
-from Shared_file import Shared_file
 import hashlib
 
 import threading, os
@@ -29,7 +28,7 @@ def udp_log(side, message):
 
 def manu(cli_path, local_files):
     print("\n=============\n" +
-          "1. DIR - show server file list\n" +
+          "1. SCH - show server file list\n" +
           "2. SHR - share my files \n" +
           "3. LNK - get file link \n" +
           "4. PLY - play mp3 file\n\n"
@@ -41,7 +40,8 @@ def manu(cli_path, local_files):
     if data == "9":
         return "q"
     elif data == "1":
-        return "DIR"
+        keyword = input("search for:")
+        return "SCH|"+keyword
 
     elif data == "2":
         to_send = "SHR|" + str(len(local_files))
@@ -361,7 +361,7 @@ def main(cli_path, server_ip):
             break
         action = data[:8]
         fields = data[9:].split("|")
-        if action == "DIR_BACK":
+        if action == "SCH_BACK":
             print("\n File List")
             for f in fields:
                 info = f.split("~")

@@ -5,7 +5,6 @@ import os
 import queue, threading, time, datetime
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
-from Shared_file import Shared_file
 from uuid import uuid4
 import sqlCommands
 
@@ -28,11 +27,15 @@ def create_token(file_name, files):
     files_lock.release()
     return None
 """
-
+def login(cli_ip):
+    username = input('please enter your username:')
+    password = input('please enter your password:')
+    do_action()
 
 def handle_client(sock, tid, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
+
     while not exit_all:
         try:
             data = recv_by_size(sock)
@@ -58,6 +61,7 @@ def handle_client(sock, tid, cli_ip):
             break
     sock.close()
 
+
 def do_action(data, cli_ip):
     """
      what client ask and fill to send with the answer
@@ -76,15 +80,19 @@ def do_action(data, cli_ip):
             print("Got client request " + action + " -- " + str(fields))
         answer = action + "_BACK"
 
-        if action == "DIR":
-            songs = songs_database.get_all_songs()
+        if action == "SCH":
+            print(fields[0])
+            songs = songs_database.search_songs(fields[0])
             if len(songs) == 0:
                 answer += ''
             else:
+                print(len(songs))
                 for song in songs:
                     print(song)
                     answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.ip}~{song.size}"
+                    print('current answer:', answer)
             to_send = answer
+
         elif action == "SHR":
             files_lock.acquire()
             songs_database.add_client_folder(fields, cli_ip)
@@ -93,11 +101,10 @@ def do_action(data, cli_ip):
         elif action == "LNK":
             fn = fields[0]
             exists = songs_database.song_exists(fn)
-            print('THIS SONG EXISTS"', exists)
+            print('THIS SONG EXISTS', exists)
             if exists:
-                song = songs_database.get_song_by_file(fn)
-                print(song)
-                to_send = answer + "|" + fn + "|" + song.ip + "|" + song.size # file name, ip, size
+                song = songs_database.get_song_by_file(fn)[0]
+                to_send = f'{answer}|{fn}|{song.ip}|{song.size}' # file name, ip, size
             else:
                 to_send = "Err___R|File not exist in srv list"
         elif action == "RUL":

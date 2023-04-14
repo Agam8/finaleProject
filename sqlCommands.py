@@ -216,6 +216,21 @@ class SongsORM():
     def commit(self):
         self.conn.commit()
 
+    def create_table(self):
+        self.open_DB()
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS songs (
+                file_name TEXT PRIMARY KEY,
+                song_name TEXT,
+                artist TEXT,
+                genre TEXT,
+                ip TEXT,
+                size INTEGER,
+                checksum TEXT
+            )
+        """)
+        self.close_DB()
+
     def add_song(self, song):
         self.open_DB()
         try:
@@ -270,7 +285,7 @@ class SongsORM():
     def song_exists(self, file_name):
         self.open_DB()
         sql = "SELECT * " \
-              "FROM songs " \
+              "FROM Songs " \
               f"WHERE file_name == '{file_name}';"
 
         # print('executing:',sql)
@@ -331,13 +346,13 @@ class SongsORM():
               f"artist LIKE '%{keyword}%' OR " \
               f"genre LIKE '%{keyword}%';"
         res = self.cursor.execute(sql)
-        songs = res.fetchall()
+        rows = res.fetchall()
         self.close_DB()
-        return songs
+        return [Song(*row) for row in rows]
 
 def main():
     # create an instance of the SongsORM class and create the songs table
-    songs_orm = SongsORM('server_database.db')
+    songs_orm = SongsORM(r'E:\finaleProject\server_database.db')
     # songs_orm.create_table()
 
     # create a song object and add it to the songs table
