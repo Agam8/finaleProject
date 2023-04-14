@@ -85,6 +85,7 @@ def do_action(data, cli_ip):
                     print(song)
                     answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.ip}~{song.size}"
             to_send = answer
+
         elif action == "SHR":
             files_lock.acquire()
             songs_database.add_client_folder(fields, cli_ip)
@@ -93,11 +94,11 @@ def do_action(data, cli_ip):
         elif action == "LNK":
             fn = fields[0]
             exists = songs_database.song_exists(fn)
-            print('THIS SONG EXISTS"', exists)
+            print('THIS SONG EXISTS', exists)
             if exists:
-                song = songs_database.get_song_by_file(fn)
-                print(song)
-                to_send = answer + "|" + fn + "|" + song.ip + "|" + song.size # file name, ip, size
+                song = songs_database.get_song_by_file(fn)[0]
+                print( f'{answer}|{fn}|{song.ip}|{song.size}')
+                to_send = f'{answer}|{fn}|{song.ip}|{song.size}' # file name, ip, size
             else:
                 to_send = "Err___R|File not exist in srv list"
         elif action == "RUL":
