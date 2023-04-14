@@ -3,12 +3,13 @@ __author__ = 'Yossi'
 import datetime
 
 import socket, time
-from Shared_file import Shared_file
 import hashlib
 
 import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
+from sqlCommands import Song
+
 
 DEBUG = True
 LOG_ALL = True
@@ -27,9 +28,10 @@ def udp_log(side, message):
 
 def manu(cli_path, local_files):
     print("\n=============\n" +
-          "1. DIR - show server file list\n" +
+          "1. SCH - show server file list\n" +
           "2. SHR - share my files \n" +
-          "3. LNK - get file link \n\n" +
+          "3. LNK - get file link \n" +
+          "4. PLY - play mp3 file\n\n"
           "9. exit\n>" +
           "=============\n\n")
 
@@ -38,21 +40,30 @@ def manu(cli_path, local_files):
     if data == "9":
         return "q"
     elif data == "1":
-        return "DIR"
+        keyword = input("search for:")
+        return "SCH|"+keyword
 
     elif data == "2":
-        d = load_local_files(cli_path)
         to_send = "SHR|" + str(len(local_files))
-        for k, v in local_files.items():
-            to_send += "|" + v.name + "~" + str(v.size)
+        for file, song in local_files.items():
+            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}"
         return to_send
     elif data == "3":
         fn = input("enter file name>")
         return "LNK|" + fn
+    elif data == "4":
+        sn = input("enter song file name>")
+        # play_song(cli_path, sn)
+        return "RULIVE"
 
     else:
         return "RULIVE"
 
+"""
+def play_song(cli_path, song_name):
+    print(f"playing {song_name} from your library")
+    playsound.playsound(os.path.join(cli_path, song_name))
+"""
 
 def load_local_files(cli_path):
     d = {}
@@ -60,8 +71,8 @@ def load_local_files(cli_path):
         full_name = os.path.join(cli_path, f)
         if DEBUG:
             print("f " + full_name + " " + str(os.path.isfile(full_name)))
-        if os.path.isfile(full_name):
-            d[f] = Shared_file(f, os.path.getsize(full_name), "!")
+        if os.path.isfile(full_name) and f.endswith(".mp3"):
+            d[f] = Song(f,input(f'{f} name: '),input(f'{f} artist: '),input(f'{f} genre: '),size=os.path.getsize(full_name))
     return d
 
 
@@ -133,11 +144,11 @@ def udp_file_send_test(udp_sock, fullname, fsize, addr):
     with open(fullname, 'rb') as f_data:
         while not done:
             bin_data = f_data.read(FILE_PACK_SIZE)
-            if (len(bin_data) == 0):
+            if len(bin_data) == 0:
                 udp_log("server", "Seems empty file in disk" + fullname)
                 break
             pos += len(bin_data)
-            if (pos >= fsize):
+            if pos >= fsize:
                 done = True
             m = hashlib.md5()
             m.update(bin_data)
@@ -173,7 +184,7 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
     with open(fullname, 'rb') as f_data:
         while not done:
             bin_data = f_data.read(FILE_PACK_SIZE)
-            if (len(bin_data) == 0):
+            if len(bin_data) == 0:
                 udp_log("server", "Seems empty file in disk" + fullname)
                 break
             pos += len(bin_data)
@@ -190,7 +201,7 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
                 if DEBUG and LOG_ALL:
                     pass
                     udp_log("server", "Just sent part %d file with %d bytes pos = %d header %s " % (
-                    pack_cnt, len(bin_data), pos, bin_data[:18]))
+                        pack_cnt, len(bin_data), pos, bin_data[:18]))
                 pack_cnt += 1
             except socket.error as e:
                 udp_log("server", "Sock send error: addr = " + addr[0] + ":" + str(addr[1]) + " " + str(e.errno))
@@ -211,10 +222,10 @@ def udp_file_recv(udp_sock, fullname, size, addr):
     try:
 
         while not done:
-            data = ""
+            data = b""
             while len(data) < HEADER_SIZE:
                 rcv_data, addr = udp_sock.recvfrom(FILE_PACK_SIZE + HEADER_SIZE)
-                if rcv_data == "":
+                if rcv_data == b"":
                     return False
                 data += rcv_data
             if data == "":
@@ -223,7 +234,7 @@ def udp_file_recv(udp_sock, fullname, size, addr):
                 f_write = open(fullname, 'wb')
                 file_open = True
 
-            header = data[:HEADER_SIZE]
+            header = data[:HEADER_SIZE].decode()
             pack_size = int(header[:9])
             pack_cnt = int(header[10:18])
             pack_checksum = header[19:]
@@ -241,7 +252,7 @@ def udp_file_recv(udp_sock, fullname, size, addr):
             if DEBUG and LOG_ALL:
                 pass
                 udp_log("client", "Just got part %d file with %d bytes pos = %d header %s " % (
-                pack_cnt, len(bin_data), file_pos, header))
+                    pack_cnt, len(bin_data), file_pos, header))
 
             if pack_cnt - 1 == last:
                 f_write.write(bin_data)
@@ -338,6 +349,7 @@ def main(cli_path, server_ip):
 
         if data == "q":
             break
+
         send_with_size(cli_s, data)
 
         data = recv_by_size(cli_s)
@@ -349,16 +361,16 @@ def main(cli_path, server_ip):
             break
         action = data[:8]
         fields = data[9:].split("|")
-        if action == "DIR_BACK":
+        if action == "SCH_BACK":
             print("\n File List")
             for f in fields:
                 info = f.split("~")
-                if len(info)>1:
-                    print("\t" + info[0] + " " + info[1] + " " + info[2] + "\n", end=' ')
+                if len(info) > 1:
+                    print("\t{} {} {} {} {}\n".format(info[0], info[1], info[2], info[3], info[4]), end=' ')
                 else:
                     print("\tserver's directory is empty\n")
         elif action == "SHR_BACK":
-            print("Share status: "+ data)
+            print("Share status: " + data)
         elif action == "UPD_BACK":
             print("Got " + data)
         elif action == "LNK_BACK":
