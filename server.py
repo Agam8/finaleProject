@@ -7,10 +7,11 @@ from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from uuid import uuid4
 import sqlCommands
-
+DATETIME_FORMAT='%m/%d/%y %H:%M:%S'
 DEBUG = True
 exit_all = False
-songs_database = sqlCommands.SongsORM('server_database.db')
+TCP_PORT=7777
+
 files_lock = threading.Lock()
 
 """
@@ -144,7 +145,7 @@ def main(srv_path):
     load_files_from_server_folder(srv_path)
 
     s = socket.socket()
-    s.bind(("0.0.0.0", 5500))
+    s.bind(("0.0.0.0", TCP_PORT))
     s.listen(4)
     print("after listen")
 
