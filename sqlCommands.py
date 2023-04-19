@@ -1,12 +1,4 @@
-import sqlite3
-import os
-
-<<<<<<< HEAD
 __author__ = 'Agam'
-=======
-__author__ = 'agam'
->>>>>>> main
-
 
 class User(object):
     def __init__(self, id, username, email, password, is_logged,
@@ -374,10 +366,14 @@ def main():
 """    # search for songs by name
     name_search_results = songs_orm.get_songs_by_name('song')
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c696e1b5c6c515672ff90086675f60aa347617fc
     # search for songs by artist
     artist_search_results = songs_orm.get_songs_by_artist('artist')
     # search for songs by genre
     genre_search_results = songs_orm.get_songs_by_genre('pop')
+<<<<<<< HEAD
 =======
 
     # search for songs by artist
@@ -387,32 +383,10 @@ def main():
     genre_search_results = songs_orm.get_songs_by_genre('pop')
 
 >>>>>>> main
+=======
+>>>>>>> c696e1b5c6c515672ff90086675f60aa347617fc
     print(all_songs, name_search_results, artist_search_results,genre_search_results)
 """
 
 if __name__ == "__main__":
     main()
-<<<<<<< HEAD
-import sqlite3
-import os
-
-__author__ = 'agam'
-
-
-class User(object):
-    def __init__(self, id, username, email, password, is_logged,
-                 saved_playlists, liked_songs, average_duration):
-        self.id = id
-        self.username = username
-        self.email = email
-        self.password = password
-        self.is_logged = is_logged
-        self.saved_playlists = saved_playlists
-        self.liked_songs = liked_songs
-        self.average_duration = average_duration
-
-    def __str__(self):
-        pass
-
-=======
->>>>>>> main

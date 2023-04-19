@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 __author__ = 'Agam'
+=======
+__author__ = 'Yossi'
+>>>>>>> c696e1b5c6c515672ff90086675f60aa347617fc
 
 class Token():
     def __init__(self, token, start_time):
