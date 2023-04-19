@@ -7,7 +7,6 @@ import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from sqlCommands import Song
-
 DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
