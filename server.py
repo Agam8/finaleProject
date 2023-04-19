@@ -1,44 +1,49 @@
-__author__ = 'Yossi'
+__author__ = 'Agam'
 
 import socket
 import os
 import queue, threading, time, datetime
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
-from uuid import uuid4
+import secrets
+import string
 import sqlCommands
-DATETIME_FORMAT='%m/%d/%y %H:%M:%S'
+from token import Token
+TCP_PORT=7777
 DEBUG = True
 exit_all = False
-TCP_PORT=7777
-
+songs_database = sqlCommands.SongsORM('server_database.db')
 files_lock = threading.Lock()
+current_tokens = {}
+token_lock = threading.Lock()
+DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
 
-"""
-def create_token(file_name, files):
-    token = str(uuid4())
-    now = datetime.datetime.now()
-    expiry_time = now + datetime.timedelta(hours=2)
-    files_lock.acquire()
-    if file_name in files:
-        files[file_name].token = token
-        files[file_name].expiry_time = expiry_time
-        files_lock.release()
-        return token
-    files_lock.release()
-    return None
-"""
-def login(cli_ip):
+def create_token():
+    secure_str = ''.join((secrets.choice(string.ascii_letters + string.digits) for i in range(16)))
+    return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
+
+"""def login(cli_ip):
     username = input('please enter your username:')
     password = input('please enter your password:')
-    do_action()
+    do_action()"""
+def handle_token(cli_ip,sock):
+    while True:
+        if exit_all:
+            print("Seems Server DC")
+            break
+        if cli_ip in current_tokens.keys():
+            data = "TKN"
+            to_send = do_action(data, cli_ip)
+            send_with_size(sock, to_send)
 
 def handle_client(sock, tid, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
-
+    token_server = threading.Thread(target=handle_token,args=(cli_ip,sock))
+    token_server.start()
     while not exit_all:
         try:
+
             data = recv_by_size(sock)
             if data == "":
                 print("Error: Seems Client DC")
@@ -60,6 +65,7 @@ def handle_client(sock, tid, cli_ip):
         except Exception as err:
             print("General Error:", err)
             break
+    token_server.join()
     sock.close()
 
 
@@ -67,7 +73,7 @@ def do_action(data, cli_ip):
     """
      what client ask and fill to send with the answer
     """
-    global files_lock
+    global files_lock, current_tokens, token_lock
 
     to_send = "Not Set Yet"
 
@@ -102,12 +108,24 @@ def do_action(data, cli_ip):
         elif action == "LNK":
             fn = fields[0]
             exists = songs_database.song_exists(fn)
-            print('THIS SONG EXISTS', exists)
+            # print('THIS SONG EXISTS', exists)
             if exists:
                 song = songs_database.get_song_by_file(fn)[0]
-                to_send = f'{answer}|{fn}|{song.ip}|{song.size}' # file name, ip, size
+                token_obj = create_token()
+                token_lock.acquire()
+                current_tokens[song.ip] = token_obj
+                token_lock.release()
+                to_send = f'{answer}|{fn}|{song.ip}|{song.size}|{token_obj.token}' # file name, ip, size
             else:
                 to_send = "Err___R|File not exist in srv list"
+
+        elif action == 'TKN':
+            token = current_tokens[cli_ip]
+            token_lock.acquire()
+            del current_tokens[cli_ip]
+            token_lock.release()
+            to_send = f'{answer}|{token.token}|{token.start_time}'
+
         elif action == "RUL":
             to_send = answer + "|Server Is Live"
         else:

@@ -1,7 +1,11 @@
 import sqlite3
 import os
 
+<<<<<<< HEAD
+__author__ = 'Agam'
+=======
 __author__ = 'agam'
+>>>>>>> main
 
 
 class User(object):
@@ -369,6 +373,12 @@ def main():
 
 """    # search for songs by name
     name_search_results = songs_orm.get_songs_by_name('song')
+<<<<<<< HEAD
+    # search for songs by artist
+    artist_search_results = songs_orm.get_songs_by_artist('artist')
+    # search for songs by genre
+    genre_search_results = songs_orm.get_songs_by_genre('pop')
+=======
 
     # search for songs by artist
     artist_search_results = songs_orm.get_songs_by_artist('artist')
@@ -376,8 +386,33 @@ def main():
     # search for songs by genre
     genre_search_results = songs_orm.get_songs_by_genre('pop')
 
+>>>>>>> main
     print(all_songs, name_search_results, artist_search_results,genre_search_results)
 """
 
 if __name__ == "__main__":
     main()
+<<<<<<< HEAD
+import sqlite3
+import os
+
+__author__ = 'agam'
+
+
+class User(object):
+    def __init__(self, id, username, email, password, is_logged,
+                 saved_playlists, liked_songs, average_duration):
+        self.id = id
+        self.username = username
+        self.email = email
+        self.password = password
+        self.is_logged = is_logged
+        self.saved_playlists = saved_playlists
+        self.liked_songs = liked_songs
+        self.average_duration = average_duration
+
+    def __str__(self):
+        pass
+
+=======
+>>>>>>> main
