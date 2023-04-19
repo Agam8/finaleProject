@@ -8,7 +8,7 @@ from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from sqlCommands import Song
 
-DATETIME_FORMAT='%y-%m-%d %H:%M:%S'
+DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
 TEST = False
@@ -22,9 +22,12 @@ HEADER_SIZE = 9 + 1 + 8 + 1 + 32
 
 def token_server(cli_s, cli_path, exit_all):
     while True:
-        data = cli_s.recv(1024).decode()
-        if data == '' or exit_all:
-            print("Seems server DC")
+        data = recv_by_size(cli_s)
+        if data == "" or exit_all:
+            print("seems server DC")
+            break
+        if len(data) < 8:
+            print("seems bad message format:" + data)
             break
         data_recv(data, cli_path)
     return
@@ -89,8 +92,9 @@ def load_local_files(cli_path):
 
 def check_valid_token(token):
     global token_dict
+    print('got to check token')
     if token in token_dict.keys():
-        time_difference = (datetime.datetime.now() - datetime.datetime.strptime(token[token],DATETIME_FORMAT)).seconds
+        time_difference = (datetime.datetime.now() - datetime.datetime.strptime(token_dict[token],DATETIME_FORMAT)).seconds
         if time_difference < 7200: # 2 hours
             token_lock.acquire()
             del token_dict[token]
@@ -125,11 +129,12 @@ def udp_server(cli_path, local_files, exit_all):
             if DEBUG:
                 udp_log("server", " Got UDP Request " + data)
             if data[:3] == "FRQ":
-                print('got request')
+                # print('got request')
                 fields = data[4:].split("|")
                 fn = fields[0]
                 fsize = int(fields[1])
                 ftoken = fields[2]
+                print(fn,fsize,ftoken)
                 if check_valid_token(ftoken):
                     if fn in local_files.keys():
                         if local_files[fn].size == fsize and fsize > 0:
@@ -392,11 +397,12 @@ def data_recv(data,cli_path):
             pass
             # Todo - ask file from server
 
-    elif action == "TKN_BACK": #server sends to listening client
+    elif action == "TKN_BACK": # server sends to listening client
         token = fields[0]
         start_time = fields[1]
         token_lock.acquire()
         token_dict[token] = start_time
+        print(token_dict)
         token_lock.release()
 
     elif action == "RUL_BACK":
@@ -426,18 +432,10 @@ def main(cli_path, server_ip):
 
         send_with_size(cli_s, data)
 
-        data = recv_by_size(cli_s)
-        if data == "":
-            print("seems server DC")
-            break
-        if len(data) < 8:
-            print("seems bad message format:" + data)
-            break
-        data_recv(data,cli_path)
-
     cli_s.close()
     exit_all = True
     udp_srv.join()
+    token_srv.join()
     print("Main Client -  Bye Bye")
 
 
