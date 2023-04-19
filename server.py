@@ -1,4 +1,4 @@
-__author__ = 'Yossi'
+__author__ = 'Agam'
 
 import socket
 import os
@@ -9,7 +9,7 @@ import secrets
 import string
 import sqlCommands
 from token import Token
-
+TCP_PORT=7777
 DEBUG = True
 exit_all = False
 songs_database = sqlCommands.SongsORM('server_database.db')
@@ -154,7 +154,7 @@ def main(srv_path):
     load_files_from_server_folder(srv_path)
 
     s = socket.socket()
-    s.bind(("0.0.0.0", 5500))
+    s.bind(("0.0.0.0", TCP_PORT))
     s.listen(4)
     print("after listen")
 

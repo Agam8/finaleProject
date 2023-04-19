@@ -1,4 +1,4 @@
-__author__ = 'Yossi'
+__author__ = 'Agam'
 
 class Token():
     def __init__(self, token, start_time):

@@ -1,5 +1,4 @@
-
-__author__ = 'Yossi'
+__author__ = 'Agam'
 
 import datetime
 import socket, time
@@ -21,12 +20,14 @@ TOKEN_PORT=9999
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
 
-def token_server(cli_s, exit_all):
+def token_server(cli_s, cli_path, exit_all):
     while True:
         data = cli_s.recv(1024).decode()
         if data == '' or exit_all:
             print("Seems server DC")
             break
+        data_recv(data, cli_path)
+    return
 
 
 
