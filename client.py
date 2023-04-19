@@ -1,24 +1,32 @@
 __author__ = 'Yossi'
 
 import datetime
-
 import socket, time
-from Shared_file import Shared_file
 import hashlib
-
 import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
-import playsound
+from sqlCommands import Song
 
-
-
+DATETIME_FORMAT='%y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
 TEST = False
-
+token_dict={}
+token_lock = threading.Lock()
+UDP_PORT=5555
+TCP_PORT=7777
+TOKEN_PORT=9999
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
+
+def token_server(cli_s, exit_all):
+    while True:
+        data = cli_s.recv(1024).decode()
+        if data == '' or exit_all:
+            print("Seems server DC")
+            break
+
 
 
 def udp_log(side, message):
@@ -30,7 +38,7 @@ def udp_log(side, message):
 
 def manu(cli_path, local_files):
     print("\n=============\n" +
-          "1. DIR - show server file list\n" +
+          "1. SCH - show server file list\n" +
           "2. SHR - share my files \n" +
           "3. LNK - get file link \n" +
           "4. PLY - play mp3 file\n\n"
@@ -42,30 +50,30 @@ def manu(cli_path, local_files):
     if data == "9":
         return "q"
     elif data == "1":
-        return "DIR"
+        keyword = input("search for:")
+        return "SCH|"+keyword
 
     elif data == "2":
-        d = load_local_files(cli_path)
         to_send = "SHR|" + str(len(local_files))
-        for k, v in local_files.items():
-            to_send += "|" + v.name + "~" + str(v.size)
+        for file, song in local_files.items():
+            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}"
         return to_send
     elif data == "3":
         fn = input("enter file name>")
         return "LNK|" + fn
     elif data == "4":
         sn = input("enter song file name>")
-        play_song(cli_path, sn)
+        # play_song(cli_path, sn)
         return "RULIVE"
 
     else:
         return "RULIVE"
 
-
+"""
 def play_song(cli_path, song_name):
     print(f"playing {song_name} from your library")
     playsound.playsound(os.path.join(cli_path, song_name))
-
+"""
 
 def load_local_files(cli_path):
     d = {}
@@ -73,10 +81,20 @@ def load_local_files(cli_path):
         full_name = os.path.join(cli_path, f)
         if DEBUG:
             print("f " + full_name + " " + str(os.path.isfile(full_name)))
-        if os.path.isfile(full_name):
-            d[f] = Shared_file(f, os.path.getsize(full_name), "!")
+        if os.path.isfile(full_name) and f.endswith(".mp3"):
+            d[f] = Song(f,input(f'{f} name: '),input(f'{f} artist: '),input(f'{f} genre: '),size=os.path.getsize(full_name))
     return d
 
+def check_valid_token(token):
+    global token_dict
+    if token in token_dict.keys():
+        time_difference = (datetime.datetime.now() - datetime.datetime.strptime(token[token],DATETIME_FORMAT)).seconds
+        if time_difference < 7200: # 2 hours
+            token_lock.acquire()
+            del token_dict[token]
+            token_lock.release()
+            return True
+    return False
 
 def udp_server(cli_path, local_files, exit_all):
     """
@@ -87,7 +105,7 @@ def udp_server(cli_path, local_files, exit_all):
     bind_ok = False
 
     try:
-        udp_sock.bind(("0.0.0.0", 5501))
+        udp_sock.bind(("0.0.0.0", UDP_PORT))
         bind_ok = True
         print('udp server is up')
     except socket.error as e:
@@ -109,20 +127,23 @@ def udp_server(cli_path, local_files, exit_all):
                 fields = data[4:].split("|")
                 fn = fields[0]
                 fsize = int(fields[1])
+                ftoken = fields[2]
+                if check_valid_token(ftoken):
+                    if fn in local_files.keys():
+                        if local_files[fn].size == fsize and fsize > 0:
+                            fullname = os.path.join(cli_path, fn)
 
-                if fn in local_files.keys():
-                    if local_files[fn].size == fsize and fsize > 0:
-                        fullname = os.path.join(cli_path, fn)
-
-                        if TEST:
-                            udp_file_send_test(udp_sock, fullname, fsize, addr)
+                            if TEST:
+                                udp_file_send_test(udp_sock, fullname, fsize, addr)
+                            else:
+                                udp_file_send(udp_sock, fullname, fsize, addr)
+                            time.sleep(5)
                         else:
-                            udp_file_send(udp_sock, fullname, fsize, addr)
-                        time.sleep(5)
+                            udp_log("server", "sizes not ok")
                     else:
-                        udp_log("server", "sizes not ok")
+                        udp_log("server", "file not found " + fn)
                 else:
-                    udp_log("server", "file not found " + fn)
+                    udp_log("server", "invalid token "+ ftoken)
         except socket.error as e:
             print("-Sock error:" + str(e.args) + " " + e.message)
             if e.errno == 10048:
@@ -299,17 +320,17 @@ def try_to_move_old_packs_to_file(f_data, last, max, keep):
     return last
 
 
-def udp_client(cli_path, ip, fn, size):
+def udp_client(cli_path, ip, fn, size, token):
     """
     will send file request and then will recv Binary data
     """
     # print("got to func")
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    addr = (ip, 5501)
+    addr = (ip, UDP_PORT)
     udp_sock.settimeout(10)
     send_ok = False
 
-    to_send = "FRQ|" + fn + "|" + str(size)
+    to_send = "FRQ|" + fn + "|" + str(size) + "|" + token
     try:
 
         udp_sock.sendto(to_send.encode(), addr)
@@ -334,18 +355,67 @@ def udp_client(cli_path, ip, fn, size):
             udp_log('client', "Send failed or size = 0")
     udp_sock.close()
 
+def data_recv(data,cli_path):
+    global token_dict
+
+    action = data[:8]
+    fields = data[9:].split("|")
+    if action == "SCH_BACK":
+        print("\n File List")
+        for f in fields:
+            info = f.split("~")
+            if len(info) > 1:
+                print("\t{} {} {} {} {}\n".format(info[0], info[1], info[2], info[3], info[4]), end=' ')
+            else:
+                print("\tserver's directory is empty\n")
+
+    elif action == "SHR_BACK":
+        print("Share status: " + data)
+
+    elif action == "UPD_BACK":
+        print("Got " + data)
+
+    elif action == "LNK_BACK":
+        fname = fields[0]
+        fip = fields[1]
+        fsize = int(fields[2])
+        ftoken = fields[3]
+        if fip != "0.0.0.0":
+            print('got to udp client')
+            udp_cli = threading.Thread(target=udp_client, args=(cli_path, fip, fname, fsize,ftoken))
+            udp_cli.start()
+            print("Run udp client to download the file " + fname + " from " + fip)
+            udp_cli.join()
+        else:
+            pass
+            # Todo - ask file from server
+
+    elif action == "TKN_BACK": #server sends to listening client
+        token = fields[0]
+        start_time = fields[1]
+        token_lock.acquire()
+        token_dict[token] = start_time
+        token_lock.release()
+
+    elif action == "RUL_BACK":
+        print("Server answer and Live")
+    else:
+        print("Unknown action back " + action)
+
 
 def main(cli_path, server_ip):
     cli_s = socket.socket()
 
     local_files = load_local_files(cli_path)
     print("before connect ip = " + server_ip)
-    cli_s.connect((server_ip, 5500))
+    cli_s.connect((server_ip, TCP_PORT))
     exit_all = False
     udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
     udp_srv.start()
     time.sleep(0.3)
-
+    token_srv = threading.Thread(target=token_server, args=(cli_s, cli_path, exit_all))
+    token_srv.start()
+    time.sleep(0.3)
     while True:
         data = manu(cli_path, local_files)
 
@@ -361,37 +431,7 @@ def main(cli_path, server_ip):
         if len(data) < 8:
             print("seems bad message format:" + data)
             break
-        action = data[:8]
-        fields = data[9:].split("|")
-        if action == "DIR_BACK":
-            print("\n File List")
-            for f in fields:
-                info = f.split("~")
-                if len(info) > 1:
-                    print("\t" + info[0] + " " + info[1] + " " + info[2] + "\n", end=' ')
-                else:
-                    print("\tserver's directory is empty\n")
-        elif action == "SHR_BACK":
-            print("Share status: " + data)
-        elif action == "UPD_BACK":
-            print("Got " + data)
-        elif action == "LNK_BACK":
-            fname = fields[0]
-            fip = fields[1]
-            fsize = int(fields[2])
-            if fip != "0.0.0.0":
-                print('got to udp client')
-                udp_cli = threading.Thread(target=udp_client, args=(cli_path, fip, fname, fsize))
-                udp_cli.start()
-                print("Run udp client to download the file " + fname + " from " + fip)
-                udp_cli.join()
-            else:
-                pass
-                # Todo - ask file from server
-        elif action == "RUL_BACK":
-            print("Server answer and Live")
-        else:
-            print("Unknown action back " + action)
+        data_recv(data,cli_path)
 
     cli_s.close()
     exit_all = True
@@ -405,55 +445,3 @@ if __name__ == "__main__":
     else:
         print("USAGE : <enter client folder> <server_ip>")
         exit()
-
-"""
-def udp_file_recv2(udp_sock, fullname, size, addr):
-    done = False
-    file_pos = 0
-    last = 0
-    max = 0
-    keep = {}
-
-    with open(fullname,'wb') as f_data:
-
-        while not done:
-            header = ""
-            while len(header) < HEADER_SIZE:
-                rcv_data, addr = udp_sock.recvfrom(HEADER_SIZE - len(header) )
-                if rcv_data == "":
-                    return False
-                header += rcv_data
-            if header == "":
-                return False
-            pack_size = int(header[:9])
-            pack_cnt = int(header[10:18])
-
-            recv_data = ""
-            while len(recv_data) < pack_size:
-                data , addr = udp_sock.recvfrom(pack_size - len(recv_data))
-                recv_data += data
-                if data == "":
-                     return False
-            file_pos +=   pack_size
-            if (file_pos >= size):
-                done = True
-
-            if pack_cnt > max:
-                    max = pack_cnt
-            if pack_cnt - 1  == last:
-                f_data.write(rcv_data)
-                last += 1
-            else:
-                keep[pack_cnt] = rcv_data
-                if DEBUG:
-                    print "Got unorder pack number " + str (pack_cnt)
-
-            last = try_to_move_old_packs_to_file(f_data,last,max, keep)
-    if DEBUG:
-        if os.path.isfile(fullname):
-            if os.path.getsize(fullname) == size:
-                print "Got Udp file" + fullname + " len=" + str(size)
-        else:
-            print "Udp client - Something went wrong cant download " + fullname
-
-"""
