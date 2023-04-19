@@ -16,26 +16,34 @@ songs_database = sqlCommands.SongsORM('server_database.db')
 files_lock = threading.Lock()
 current_tokens = {}
 token_lock = threading.Lock()
+DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
 
 def create_token():
     secure_str = ''.join((secrets.choice(string.ascii_letters + string.digits) for i in range(16)))
-    return Token(secure_str,datetime.datetime.now())
+    return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
 
 """def login(cli_ip):
     username = input('please enter your username:')
     password = input('please enter your password:')
     do_action()"""
+def handle_token(cli_ip,sock):
+    while True:
+        if exit_all:
+            print("Seems Server DC")
+            break
+        if cli_ip in current_tokens.keys():
+            data = "TKN"
+            to_send = do_action(data, cli_ip)
+            send_with_size(sock, to_send)
 
 def handle_client(sock, tid, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
-
+    token_server = threading.Thread(target=handle_token,args=(cli_ip,sock))
+    token_server.start()
     while not exit_all:
         try:
-            if cli_ip in current_tokens.keys():
-                data = "TKN"
-                to_send = do_action(data,cli_ip)
-                send_with_size(sock, to_send)
+
             data = recv_by_size(sock)
             if data == "":
                 print("Error: Seems Client DC")
@@ -57,6 +65,7 @@ def handle_client(sock, tid, cli_ip):
         except Exception as err:
             print("General Error:", err)
             break
+    token_server.join()
     sock.close()
 
 
