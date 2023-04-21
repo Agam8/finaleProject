@@ -3,6 +3,7 @@ __author__ = 'Agam'
 import datetime
 import socket, time
 import hashlib
+import ssl
 import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
@@ -31,6 +32,24 @@ def token_server(cli_s, cli_path, exit_all):
         data_recv(data, cli_path)
     return
 
+def login(client_socket):
+    # Wrap socket with SSL/TLS
+    ssl_socket = ssl.wrap_socket(client_socket, cert_reqs=ssl.CERT_REQUIRED, ca_certs="server.crt", ssl_version=ssl.PROTOCOL_TLSv1_2)
+    logged = False
+    while not logged:
+        username = input("please enter your username> ")
+        password = input("please enter your password> ")
+        # Send username and password to server
+        to_send = f"LOG|{username}|{password}"
+        send_with_size(ssl_socket, to_send)
+
+        # Receive authentication result from server
+        auth_result = recv_by_size(ssl_socket)
+        if auth_result[:-2] == 'OK':
+            logged = True
+        if auth_result == "EXT":
+            break
+    return logged
 
 
 def udp_log(side, message):
@@ -366,7 +385,12 @@ def data_recv(data,cli_path):
 
     action = data[:8]
     fields = data[9:].split("|")
-    if action == "SCH_BACK":
+    if action == 'LOG_BACK':
+        if fields[0]=='OK':
+            print('logged!')
+        else:
+            print('not logged')
+    elif action == "SCH_BACK":
         print("\n File List")
         for f in fields:
             info = f.split("~")
@@ -412,11 +436,13 @@ def data_recv(data,cli_path):
 
 def main(cli_path, server_ip):
     cli_s = socket.socket()
-
-    local_files = load_local_files(cli_path)
     print("before connect ip = " + server_ip)
     cli_s.connect((server_ip, TCP_PORT))
     exit_all = False
+    logged = login(cli_s)
+    if not logged:
+        return
+    local_files = load_local_files(cli_path)
     udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
     udp_srv.start()
     time.sleep(0.3)

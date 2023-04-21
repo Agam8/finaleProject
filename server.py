@@ -1,7 +1,7 @@
 __author__ = 'Agam'
 
 import socket
-import os
+import ssl
 import queue, threading, time, datetime
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
@@ -13,6 +13,7 @@ TCP_PORT=7777
 DEBUG = True
 exit_all = False
 songs_database = sqlCommands.SongsORM('server_database.db')
+users_database = sqlCommands.UserORM('server_database.db')
 files_lock = threading.Lock()
 current_tokens = {}
 token_lock = threading.Lock()
@@ -22,10 +23,29 @@ def create_token():
     secure_str = ''.join((secrets.choice(string.ascii_letters + string.digits) for i in range(16)))
     return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
 
-"""def login(cli_ip):
-    username = input('please enter your username:')
-    password = input('please enter your password:')
-    do_action()"""
+def login(client_socket,cli_ip):
+    # Wrap socket with SSL/TLS
+    ssl_socket = ssl.wrap_socket(client_socket, server_side=True, certfile="server.crt", keyfile="server.key",
+                                 ssl_version=ssl.PROTOCOL_TLSv1_2)
+
+    # Receive username and password from client
+    tries = 0
+    logged = False
+    username=''
+    while tries < 6 and not logged:
+        data = recv_by_size(ssl_socket)
+        to_send = do_action(data,cli_ip)
+        if to_send[:-2] == 'OK':
+            logged =  True
+            username = data.split('|')[1]
+        else:
+            if tries ==5:
+                to_send = "EXT"
+        send_with_size(ssl_socket, to_send)
+        tries -= 1
+    return logged, username
+
+
 def handle_token(cli_ip,sock):
     while True:
         if exit_all:
@@ -39,6 +59,9 @@ def handle_token(cli_ip,sock):
 def handle_client(sock, tid, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
+    logged = login(sock,cli_ip)
+    if not logged:
+        return
     token_server = threading.Thread(target=handle_token,args=(cli_ip,sock))
     token_server.start()
     while not exit_all:
@@ -87,7 +110,16 @@ def do_action(data, cli_ip):
             print("Got client request " + action + " -- " + str(fields))
         answer = action + "_BACK"
 
-        if action == "SCH":
+        if action == "LOG":
+            username = fields[0]
+            password = fields[1]
+            verify = users_database.login(username,password,cli_ip)
+            if verify:
+                to_send = answer + "|"+"OK"
+            else:
+                to_send = answer+ "|"+"NO"
+
+        elif action == "SCH":
             print(fields[0])
             songs = songs_database.search_songs(fields[0])
             if len(songs) == 0:
@@ -104,7 +136,7 @@ def do_action(data, cli_ip):
             files_lock.acquire()
             songs_database.add_client_folder(fields, cli_ip)
             files_lock.release()
-            to_send = answer + "|Ok"
+            to_send = answer + "|OK"
         elif action == "LNK":
             fn = fields[0]
             exists = songs_database.song_exists(fn)

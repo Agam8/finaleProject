@@ -1,23 +1,23 @@
 __author__ = 'Agam'
 
+import sqlite3
+import hashlib
+import os
+
 class User(object):
-    def __init__(self, id, username, email, password, is_logged,
-                 saved_playlists, liked_songs, average_duration):
+    def __init__(self, id, username, password, current_ip, is_logged):
         self.id = id
         self.username = username
-        self.email = email
         self.password = password
+        self.current_ip = current_ip
         self.is_logged = is_logged
-        self.saved_playlists = saved_playlists
-        self.liked_songs = liked_songs
-        self.average_duration = average_duration
 
     def __str__(self):
-        pass
+        return f'{self.username}~***~{self.current_ip}~{self.is_logged}'
 
-
-class UsersORM():
-    def __init__(self):
+class UserORM():
+    def __init__(self,db_file):
+        self.db_file = db_file
         self.conn = None  # will store the DB connection
         self.cursor = None  # will store the DB connection cursor
 
@@ -27,8 +27,8 @@ class UsersORM():
         self.conn (need DB file name)
         and self.cursor
         """
-        self.conn = sqlite3.connect('Users.db')
-        self.current = self.conn.cursor()
+        self.conn = sqlite3.connect(self.db_file)
+        self.cursor = self.conn.cursor()
 
     def close_DB(self):
         self.conn.close()
@@ -36,163 +36,146 @@ class UsersORM():
     def commit(self):
         self.conn.commit()
 
-    # All read SQL
-
-    def get_user(self, id):
+    def get_user_by_id(self, user_id):
         self.open_DB()
-        user = None
-        sql = f"SELECT * FROM users WHERE id == '{id}' ;"
-        res = self.current.execute(sql)
-        user = res.fetchall()
+        user = ''
+        sql = f"SELECT * FROM users WHERE id={user_id};"
+        res = self.cursor.execute(sql)
+        user = res.fetchone()
         self.close_DB()
         return user
 
+    def get_user_by_username(self, username):
+        self.open_DB()
+        user = ''
+        sql = f"SELECT * FROM users WHERE username='{username}';"
+        res = self.cursor.execute(sql)
+        user = res.fetchone()
+        self.close_DB()
+        return user
+
+    def add_user(self, user):
+        self.open_DB()
+        added = False
+        sql = f"SELECT * FROM users WHERE username='{user.username}';"
+        res = self.cursor.execute(sql)
+        if res.fetchone() is None:
+            sql = f"INSERT INTO users (username, password, current_ip, is_logged) VALUES ('{user.username}', '{user.password}', '{user.current_ip}', '{user.is_logged}');"
+            self.cursor.execute(sql)
+            added = True
+        self.close_DB()
+        return added
+
+    def check_user_exists(self, username):
+        self.open_DB()
+        exists = False
+        sql = f"SELECT * FROM users WHERE username='{username}';"
+        res = self.cursor.execute(sql)
+        if res.fetchone() is not None:
+            exists = True
+        self.close_DB()
+        return exists
+
+    def update_user(self, user):
+        self.open_DB()
+        sql = f"UPDATE users SET password='{user.password}', current_ip='{user.current_ip}', is_logged='{user.is_logged}' WHERE id={user.id};"
+        self.cursor.execute(sql)
+        self.close_DB()
+
+    def create_user(self, username, password,ip):
+        self.open_DB()
+        new_user = User(username=username, password=password, current_ip="", is_logged=0)
+        self.cursor.execute("INSERT INTO users (username, password, current_ip, is_logged) VALUES (?, ?, ?, ?)",
+                            (new_user.username, new_user.password, new_user.current_ip, new_user.is_logged))
+        self.commit()
+        self.close_DB()
+
+    def login(self, username, password, ip):
+        user = self.get_user_by_username(username)
+        if user is not None:
+            secure_pass = hashlib.sha256(password.encode()).hexdigest()
+            if user.password == secure_pass and user.is_logged == 0:
+                self.open_DB()
+                self.cursor.execute("UPDATE users SET current_ip=?, is_logged=? WHERE username=?",
+                                    (ip, 1, username))
+                self.cursor.execute("UPDATE songs SET ip=? WHERE commited_user=?",
+                                    (ip, user.id))
+                self.commit()
+                self.close_DB()
+                return True
+        return False
+
+    def logout(self, username):
+        user = self.get_user_by_username(username)
+        if user is not None and user.is_logged == 1:
+            self.open_DB()
+            self.cursor.execute("UPDATE users SET current_ip=?, is_logged=? WHERE username=?",
+                                ("", 0, username))
+            self.commit()
+            self.close_DB()
+            return True
+        self.close_DB()
+        return False
+
+    def is_user_logged_in(self, username):
+        self.open_DB()
+        sql = f"SELECT is_logged FROM users WHERE username='{username}';"
+        res = self.cursor.execute(sql)
+        is_logged = res.fetchone()
+        self.close_DB()
+        if is_logged is not None and is_logged[0] == 1:
+            return True
+        return False
+
+    def change_status_and_ip(self, username, new_ip):
+        user = self.get_user_by_username(username)
+        self.open_DB()
+        if user is not None and user.is_logged == 0:
+            self.cursor.execute("UPDATE users SET current_ip=?, is_logged=? WHERE username=?",
+                                (new_ip, 1, username))
+            self.commit()
+            self.close_DB()
+            return True
+        self.close_DB()
+        return False
+
     def get_all_users(self):
         self.open_DB()
-        users = []
-        sql = "SELECT *" \
-              "FROM users;"
-        res = self.current.execute(sql)
-        users = res.fetchall()
+        self.cursor.execute("SELECT * FROM users")
+        user_rows = self.cursor.fetchall()
         self.close_DB()
-        return users
+        return [User(*user_row) for user_row in user_rows]
 
-    def get_users_passwords(self, entered_value):
+    # connected function to Songs table
+    def get_user_by_song(self, song):
         self.open_DB()
-        sql = "SELECT username, password" \
-              f"FROM users WHERE username == {entered_value} OR email == {entered_value}"
-        res = self.current.execute(sql)
-        users = res.fetchall()
+        user = None
+        sql = f"SELECT * FROM users WHERE id={song.commited_user};"
+        res = self.cursor.execute(sql)
+        row = res.fetchone()
+        if row is not None:
+            user = User(*row)
         self.close_DB()
+        return user
 
-    def login_user(self, entered_value):
-        self.open_DB()
-        sql = "SELECT username, password" \
-              f"FROM users WHERE username == {entered_value} OR email == {entered_value}"
-        res = self.current.execute(sql)
-        users = res.fetchall()
-        self.close_DB()
 
-    def get_students_in_grade(self, grade):
-        self.open_DB()
 
-        sql = "SELECT personal_id, first_Name, last_Name, school FROM students WHERE students.grade == " + str(
-            grade) + ";"
-        res = self.current.execute(sql)
-        students_in_grade = []
-        students_in_grade = res.fetchall()
-        self.close_DB()
-        return students_in_grade
 
-    def get_principle_and_students(self, school):
-        self.open_DB()
-        answer = f"{school}:\n"
-        sql = f"SELECT principle FROM schools WHERE name == '{school}';"
-        res = self.current.execute(sql)
-        answer += f"principle:{res.fetchall()}\n"
-        sql = f"SELECT first_Name,last_Name FROM students WHERE school == '{school}';"
-        res = self.current.execute(sql)
-        answer += f"{(res.fetchall())}"
-        return answer
-
-    def remove_student(self, personal_id, school):
-        try:
-            self.open_DB()
-
-            sql = f"UPDATE schools SET student_count = student_count -1 WHERE name == '{school}';"
-            res = self.current.execute(sql)
-            sql = f"DELETE FROM students WHERE personal_id == '{personal_id}' ;"
-            res = self.current.execute(sql)
-            self.commit()
-            self.close_DB()
-            return True
-        except sqlite3.Error as error:
-            print("Error while connecting to sqlite", error)
-            self.close_DB()
-            return False
-
-    def update_phone(self, personal_id, new_phone):
-        try:
-            self.open_DB()
-            sql = "UPDATE students SET phone = " + new_phone + " WHERE personal_id ==" + personal_id + ";"
-            res = self.current.execute(sql)
-            self.commit()
-            self.close_DB()
-            return True
-        except sqlite3.Error as error:
-            print("Error while connecting to sqlite", error)
-            self.close_DB()
-            return False
-
-    def insert_new_student(self, student):
-        try:
-            self.open_DB()
-            sql = "SELECT * FROM students;"
-            res = self.current.execute(sql)
-            print("cur students:", res.fetchall())
-            sql = f"INSERT INTO students VALUES ('{student.personal_id}', '{student.first_Name}','{student.last_Name}','{student.phone}',{student.grade},'{student.school}')"
-            res = self.current.execute(sql)
-            sql = f"UPDATE schools SET student_count=student_count+1 WHERE name == '{student.school}';"
-            res = self.current.execute(sql)
-            self.commit()
-            self.close_DB()
-            print(res)
-            return True
-        except sqlite3.Error as error:
-            print("Error while connecting to sqlite", error)
-            self.close_DB()
-            return False
-
-    def update_grades(self):
-        try:
-            self.open_DB()
-            sql = "DELETE FROM students WHERE grade == 12;"
-            res = self.current.execute(sql)
-            sql = "UPDATE students SET grade = grade + 1 ;"
-            res = self.current.execute(sql)
-
-            self.commit()
-            self.close_DB()
-            return True
-        except sqlite3.Error as error:
-            print("Error while connecting to sqlite", error)
-            self.close_DB()
-            return False
-
-    def transfer_schools(self, personal_id, new_school, old_school):
-        try:
-            self.open_DB()
-            sql = f"UPDATE students set school = '{new_school}' WHERE personal_id == '{personal_id}';"
-            res = self.current.execute(sql)
-            sql = f"UPDATE schools SET student_count = student_count - 1 WHERE name == '{old_school}';"
-            res = self.current.execute(sql)
-            sql = f"UPDATE schools SET student_count = student_count + 1 WHERE name == '{new_school}';"
-            res = self.current.execute(sql)
-
-            self.commit()
-            self.close_DB()
-            return True
-        except sqlite3.Error as error:
-            print("Error while connecting to sqlite", error)
-            self.close_DB()
-            return False
 
 
 class Song(object):
-    def __init__(self, file_name, song_name, artist, genre, ip = '', size = ''):
+    def __init__(self, file_name, song_name, artist, genre, commited_user, ip = '', size = ''):
         self.file_name = file_name
         self.song_name = song_name
         self.artist = artist
         self.genre = genre
         self.ip = ip
         self.size = size
+        self.commited_user = commited_user
 
 
     def __str__(self):
-        return f'song: {self.file_name}\n' \
-               f'name: {self.song_name}\n' \
-               f'artist: {self.artist}\n' \
-               f'size: {self.size}\n'
+        pass
 
 
 class SongsORM():
@@ -212,29 +195,14 @@ class SongsORM():
     def commit(self):
         self.conn.commit()
 
-    def create_table(self):
-        self.open_DB()
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS songs (
-                file_name TEXT PRIMARY KEY,
-                song_name TEXT,
-                artist TEXT,
-                genre TEXT,
-                ip TEXT,
-                size INTEGER,
-                checksum TEXT
-            )
-        """)
-        self.close_DB()
-
     def add_song(self, song):
         self.open_DB()
         try:
             self.cursor.execute("""
                 INSERT INTO songs (
-                    file_name, song_name, artist, genre, ip, size
+                    file_name, song_name, artist, genre, commited_user, ip, size
                 ) VALUES (?, ?, ?, ?, ?, ?)
-            """, (song.file_name, song.song_name, song.artist, song.genre, song.ip, song.size))
+            """, (song.file_name, song.song_name, song.artist, song.genre, song.commited_user, song.ip, song.size))
             self.commit()
             return True
         except Exception as e:
@@ -345,6 +313,18 @@ class SongsORM():
         rows = res.fetchall()
         self.close_DB()
         return [Song(*row) for row in rows]
+
+    # connected functions to Users table
+    def get_songs_by_user(self, user_id):
+        self.open_DB()
+        songs = []
+        sql = f"SELECT * FROM songs WHERE commited_user={user_id};"
+        res = self.cursor.execute(sql)
+        for row in res.fetchall():
+            song = Song(*row)
+            songs.append(song)
+        self.close_DB()
+        return songs
 
 def main():
     # create an instance of the SongsORM class and create the songs table
