@@ -47,12 +47,14 @@ class UserORM():
 
     def get_user_by_username(self, username):
         self.open_DB()
-        user = ''
+        user_data = None
         sql = f"SELECT * FROM users WHERE username='{username}';"
         res = self.cursor.execute(sql)
-        user = res.fetchone()
+        row = res.fetchone()
+        if row is not None:
+            user_data = User(*row)
         self.close_DB()
-        return user
+        return user_data
 
     def add_user(self, user):
         self.open_DB()
@@ -92,6 +94,7 @@ class UserORM():
 
     def login(self, username, password, ip):
         user = self.get_user_by_username(username)
+        print(user)
         if user is not None:
             secure_pass = hashlib.sha256(password.encode()).hexdigest()
             if user.password == secure_pass and user.is_logged == 0:
@@ -114,8 +117,12 @@ class UserORM():
             self.commit()
             self.close_DB()
             return True
-        self.close_DB()
         return False
+    def logout_all(self):
+        self.open_DB()
+        self.cursor.execute("UPDATE Users SET current_ip=?, is_logged=?", ('',0))
+        self.commit()
+        self.close_DB()
 
     def is_user_logged_in(self, username):
         self.open_DB()

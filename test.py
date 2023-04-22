@@ -22,8 +22,10 @@ import datetime
 print(str(datetime.datetime.now()))
 
 """
-
-
+"""
 users_database = sqlCommands.UserORM('server_database.db')
-verify = users_database.login('Agam8','12345678','10.0.0.26')
+verify = users_database.login('Agam8','12345678','127.0.0.1')
 print(verify)
+logout = users_database.logout('Agam8')
+"""
+print("LOG_BACK|OK"[-2:])

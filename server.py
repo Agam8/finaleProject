@@ -24,25 +24,21 @@ def create_token():
     return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
 
 def login(client_socket,cli_ip):
-    # Wrap socket with SSL/TLS
-    ssl_socket = ssl.wrap_socket(client_socket, server_side=True, certfile="server.crt", keyfile="server.key",
-                                 ssl_version=ssl.PROTOCOL_TLSv1_2)
-
-    # Receive username and password from client
     tries = 0
     logged = False
     username=''
     while tries < 6 and not logged:
-        data = recv_by_size(ssl_socket)
+        data = recv_by_size(client_socket)
         to_send = do_action(data,cli_ip)
-        if to_send[:-2] == 'OK':
+        if to_send[-2:] == 'OK':
             logged =  True
             username = data.split('|')[1]
         else:
             if tries ==5:
                 to_send = "EXT"
-        send_with_size(ssl_socket, to_send)
+        send_with_size(client_socket, to_send)
         tries -= 1
+    # ssl_socket.close()
     return logged, username
 
 
@@ -59,36 +55,43 @@ def handle_token(cli_ip,sock):
 def handle_client(sock, tid, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
-    logged = login(sock,cli_ip)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(r'cert\cert.pem', r'cert\key.pem')
+    client_socket = context.wrap_socket(sock, server_side=True)
+
+    logged, username= login(client_socket, cli_ip)
+
     if not logged:
         return
-    token_server = threading.Thread(target=handle_token,args=(cli_ip,sock))
+    if DEBUG:
+        print(f'user:{username} is logged in from ip:{cli_ip}')
+    token_server = threading.Thread(target=handle_token,args=(cli_ip,client_socket))
     token_server.start()
     while not exit_all:
         try:
-
-            data = recv_by_size(sock)
+            data = recv_by_size(client_socket)
             if data == "":
                 print("Error: Seems Client DC")
                 break
 
             to_send = do_action(data, cli_ip)
 
-            send_with_size(sock, to_send)
+            send_with_size(client_socket, to_send)
 
         except socket.error as err:
             if err.errno == 10054:
                 # 'Connection reset by peer'
-                print("Error %d Client is Gone. %s reset by peer." % (err.errno, str(sock)))
+                print("Error %d Client is Gone. %s reset by peer." % (err.errno, str(client_socket)))
                 break
             else:
-                print("%d General Sock Error Client %s disconnected" % (err.errno, str(sock)))
+                print("%d General Sock Error Client %s disconnected" % (err.errno, str(client_socket)))
                 break
 
         except Exception as err:
             print("General Error:", err)
             break
     token_server.join()
+    users_database.logout(username)
     sock.close()
 
 
@@ -115,6 +118,7 @@ def do_action(data, cli_ip):
             password = fields[1]
             verify = users_database.login(username,password,cli_ip)
             if verify:
+
                 to_send = answer + "|"+"OK"
             else:
                 to_send = answer+ "|"+"NO"
@@ -185,6 +189,7 @@ def load_files_from_server_folder(srv_path):
     global songs_database
     songs_database.add_server_folder(srv_path)
 
+
 def main(srv_path):
     global exit_all
     exit_all = False
@@ -215,6 +220,7 @@ def main(srv_path):
     for s, t in clients.items():
         t.join()
     manager.join()
+    users_database.logout_all()
 
     s.close()
 

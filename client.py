@@ -32,25 +32,24 @@ def token_server(cli_s, cli_path, exit_all):
         data_recv(data, cli_path)
     return
 
-def login(client_socket):
-    # Wrap socket with SSL/TLS
-    ssl_socket = ssl.wrap_socket(client_socket, cert_reqs=ssl.CERT_REQUIRED, ca_certs="server.crt", ssl_version=ssl.PROTOCOL_TLSv1_2)
+def login(cli_s):
+
     logged = False
+    username = ''
     while not logged:
         username = input("please enter your username> ")
         password = input("please enter your password> ")
         # Send username and password to server
         to_send = f"LOG|{username}|{password}"
-        send_with_size(ssl_socket, to_send)
+        send_with_size(cli_s, to_send)
 
         # Receive authentication result from server
-        auth_result = recv_by_size(ssl_socket)
-        if auth_result[:-2] == 'OK':
+        auth_result = recv_by_size(cli_s)
+        if auth_result[-2:] == 'OK':
             logged = True
         if auth_result == "EXT":
             break
-    return logged
-
+    return logged, username
 
 def udp_log(side, message):
     with open("udp_" + side + "_log.txt", 'a') as log:
@@ -98,14 +97,14 @@ def play_song(cli_path, song_name):
     playsound.playsound(os.path.join(cli_path, song_name))
 """
 
-def load_local_files(cli_path):
+def load_local_files(cli_path,username):
     d = {}
     for f in os.listdir(cli_path):
         full_name = os.path.join(cli_path, f)
         if DEBUG:
             print("f " + full_name + " " + str(os.path.isfile(full_name)))
         if os.path.isfile(full_name) and f.endswith(".mp3"):
-            d[f] = Song(f,input(f'{f} name: '),input(f'{f} artist: '),input(f'{f} genre: '),size=os.path.getsize(full_name))
+            d[f] = Song(f,input(f'{f} name: '),input(f'{f} artist: '),input(f'{f} genre: '),username, size=os.path.getsize(full_name))
     return d
 
 def check_valid_token(token):
@@ -435,14 +434,24 @@ def data_recv(data,cli_path):
 
 
 def main(cli_path, server_ip):
-    cli_s = socket.socket()
+
     print("before connect ip = " + server_ip)
-    cli_s.connect((server_ip, TCP_PORT))
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # connect to the server
+    client_socket.connect((server_ip,TCP_PORT))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.load_verify_locations(r'cert\cert.pem')
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    # create a socket and connect to the server
+    cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
+
+
     exit_all = False
-    logged = login(cli_s)
+    logged, username = login(cli_s)
     if not logged:
         return
-    local_files = load_local_files(cli_path)
+    local_files = load_local_files(cli_path,username)
     udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
     udp_srv.start()
     time.sleep(0.3)
@@ -453,6 +462,7 @@ def main(cli_path, server_ip):
         data = manu(cli_path, local_files)
 
         if data == "q":
+
             break
 
         send_with_size(cli_s, data)
