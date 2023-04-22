@@ -34,8 +34,27 @@ def token_server(cli_s, cli_path, exit_all):
 
 def login(cli_s):
     logged = False
+    signed = True
     username = ''
-    while not logged:
+    sign_or_log = input("do you have an account or do you want to sign in? enter 1 to login and 2 to sign up>")
+    if sign_or_log == '2':
+        signed = False
+        while not signed:
+            username = input('please enter you new username> ')
+            password = input('please enter your new password> ')
+            confirm_pass = input('please rewrite your password> ')
+            if password == confirm_pass:
+                to_send = f'SGN|{username}|{password}'
+                send_with_size(cli_s,to_send)
+                result = recv_by_size(cli_s)
+                if result[-4:] == 'sign':
+                    signed = True
+                elif result[-4:] == 'exst':
+                    print('username already exists or is currently logged, please try a different user')
+            else:
+                print(' please re-enter your credentials')
+
+    while not logged and signed:
         username = input("please enter your username> ")
         password = input("please enter your password> ")
         # Send username and password to server
@@ -447,9 +466,12 @@ def main(cli_path, server_ip):
 
 
     exit_all = False
+
+
     logged, username = login(cli_s)
     if not logged:
         return
+
     local_files = load_local_files(cli_path,username)
     udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
     udp_srv.start()

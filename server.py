@@ -27,8 +27,13 @@ def login(client_socket,cli_ip):
     tries = 0
     logged = False
     username=''
-    while tries < 6 and not logged:
+    data = recv_by_size(client_socket)
+    while data[:3] == 'SGN':
+        to_send = do_action(data, cli_ip)
+        send_with_size(client_socket, to_send)
         data = recv_by_size(client_socket)
+
+    while tries < 6 and not logged:
         to_send = do_action(data,cli_ip)
         if to_send[-2:] == 'OK':
             logged =  True
@@ -37,6 +42,7 @@ def login(client_socket,cli_ip):
             if tries ==5:
                 to_send = "EXT"
         send_with_size(client_socket, to_send)
+        data = recv_by_size(client_socket)
         tries -= 1
     # ssl_socket.close()
     return logged, username
@@ -122,7 +128,11 @@ def do_action(data, cli_ip):
                 to_send = answer + "|"+"OK"
             else:
                 to_send = answer+ "|"+"NO"
-
+        elif action == "SGN":
+            username = fields[0]
+            password = fields[1]
+            valid, msg = users_database.signup(username,password,cli_ip)
+            to_send = answer + "|"+msg
         elif action == "SCH":
             print(fields[0])
             songs = songs_database.search_songs(fields[0])

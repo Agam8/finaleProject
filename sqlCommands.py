@@ -107,7 +107,21 @@ class UserORM():
                 self.close_DB()
                 return True
         return False
-
+    def signup(self,username,password,cli_ip):
+        user = self.get_user_by_username(username)
+        if user is None:
+            secure_pass = hashlib.sha256(password.encode()).hexdigest()
+            self.open_DB()
+            self.cursor.execute("""
+                            INSERT INTO Users (
+                                username, password, current_ip, is_logged
+                            ) VALUES (?, ?, ?, ?)
+                        """, (username, secure_pass, cli_ip, 0))
+            self.commit()
+            self.close_DB()
+            return True, 'sign'
+        else:
+            return False, 'exst'
     def logout(self, username):
         user = self.get_user_by_username(username)
         if user is not None and user.is_logged == 1:
@@ -349,34 +363,6 @@ def main():
     # all_songs = songs_orm.get_all_songs()
     print(songs_orm.song_exists('Brakhage - No Coincidence.mp3'))
     print(songs_orm.get_song_by_file('Brakhage - No Coincidence.mp3'))
-
-
-
-
-"""    # search for songs by name
-    name_search_results = songs_orm.get_songs_by_name('song')
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> c696e1b5c6c515672ff90086675f60aa347617fc
-    # search for songs by artist
-    artist_search_results = songs_orm.get_songs_by_artist('artist')
-    # search for songs by genre
-    genre_search_results = songs_orm.get_songs_by_genre('pop')
-<<<<<<< HEAD
-=======
-
-    # search for songs by artist
-    artist_search_results = songs_orm.get_songs_by_artist('artist')
-
-    # search for songs by genre
-    genre_search_results = songs_orm.get_songs_by_genre('pop')
-
->>>>>>> main
-=======
->>>>>>> c696e1b5c6c515672ff90086675f60aa347617fc
-    print(all_songs, name_search_results, artist_search_results,genre_search_results)
-"""
 
 if __name__ == "__main__":
     main()
