@@ -33,7 +33,6 @@ def token_server(cli_s, cli_path, exit_all):
     return
 
 def login(cli_s):
-
     logged = False
     username = ''
     while not logged:
@@ -58,7 +57,7 @@ def udp_log(side, message):
             print(message)
 
 
-def manu(cli_path, local_files):
+def manu(username, local_files):
     print("\n=============\n" +
           "1. SCH - show server file list\n" +
           "2. SHR - share my files \n" +
@@ -78,7 +77,7 @@ def manu(cli_path, local_files):
     elif data == "2":
         to_send = "SHR|" + str(len(local_files))
         for file, song in local_files.items():
-            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}"
+            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{username}~{song.size}"
         return to_send
     elif data == "3":
         fn = input("enter file name>")
@@ -459,7 +458,7 @@ def main(cli_path, server_ip):
     token_srv.start()
     time.sleep(0.3)
     while True:
-        data = manu(cli_path, local_files)
+        data = manu(username, local_files)
 
         if data == "q":
 

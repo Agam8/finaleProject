@@ -101,7 +101,7 @@ class UserORM():
                 self.open_DB()
                 self.cursor.execute("UPDATE users SET current_ip=?, is_logged=? WHERE username=?",
                                     (ip, 1, username))
-                self.cursor.execute("UPDATE songs SET ip=? WHERE commited_user=?",
+                self.cursor.execute("UPDATE songs SET ip=? WHERE committed_user=?",
                                     (ip, user.id))
                 self.commit()
                 self.close_DB()
@@ -157,7 +157,7 @@ class UserORM():
     def get_user_by_song(self, song):
         self.open_DB()
         user = None
-        sql = f"SELECT * FROM users WHERE id={song.commited_user};"
+        sql = f"SELECT * FROM users WHERE id={song.committed_user};"
         res = self.cursor.execute(sql)
         row = res.fetchone()
         if row is not None:
@@ -171,18 +171,23 @@ class UserORM():
 
 
 class Song(object):
-    def __init__(self, file_name, song_name, artist, genre, commited_user, ip = '', size = ''):
+    def __init__(self, file_name, song_name, artist, genre, committed_user, ip = '', size = ''):
         self.file_name = file_name
         self.song_name = song_name
         self.artist = artist
         self.genre = genre
         self.ip = ip
         self.size = size
-        self.commited_user = commited_user
+        self.committed_user = committed_user
 
 
     def __str__(self):
-        pass
+        return f'\n\tfile name: {self.file_name}' \
+               f'\n\tsong name: {self.song_name}' \
+               f'\n\tartist: {self.artist}' \
+               f'\n\tgenre: {self.genre}' \
+               f'\n\tcommitted user: {self.committed_user}' \
+               f'\n\tip: {self.ip}\n\tsize: {self.size}'
 
 
 class SongsORM():
@@ -207,16 +212,16 @@ class SongsORM():
         try:
             self.cursor.execute("""
                 INSERT INTO songs (
-                    file_name, song_name, artist, genre, commited_user, ip, size
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            """, (song.file_name, song.song_name, song.artist, song.genre, song.commited_user, song.ip, song.size))
+                    file_name, song_name, artist, genre, committed_user, ip, size
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (song.file_name, song.song_name, song.artist, song.genre, song.committed_user, song.ip, song.size))
             self.commit()
+            self.close_DB()
             return True
         except Exception as e:
             print(e)
-            return False
-        finally:
             self.close_DB()
+            return False
 
     def get_all_songs(self):
         self.open_DB()
@@ -279,22 +284,20 @@ class SongsORM():
         try:
             for i in range(length):
                 #print("splitting by ~")
-                info = fields[i + 1].split("~")  # info[0]: file name, info[1]: song name, info[2]: artist, info[3]: genre, info[4]: size
-                #print('song ', i + 1, ':', info)
+                info = fields[i + 1].split("~")  # info[0]: file name, info[1]: song name, info[2]: artist, info[3]: genre, info[4]: username, info[5]: size
+                print('song ', i + 1, ':', info)
 
-
-                print('checking if ',info[0],' exsits')
                 exists = self.song_exists(info[0])
-
+                print(info[0]," exsits: ",exists)
                 if not exists:
-                    new_song = Song(info[0], info[1], info[2], info[3], cli_ip, info[4])
+                    new_song = Song(info[0], info[1], info[2], info[3], info[4], cli_ip, info[5])
                     self.add_song(new_song)
                     print("got new file" + str(new_song))
                 else:
                     print("file already exist " + info[0])
         except Exception as e:
             print("adding client's folder through exception: ", e)
-        print("Len of files" + str(self.count_songs()))
+        print("Len of files " + str(self.count_songs()))
 
     def add_server_folder(self,srv_path):
         for f in os.listdir(srv_path):
@@ -325,7 +328,7 @@ class SongsORM():
     def get_songs_by_user(self, user_id):
         self.open_DB()
         songs = []
-        sql = f"SELECT * FROM songs WHERE commited_user={user_id};"
+        sql = f"SELECT * FROM songs WHERE committed_user={user_id};"
         res = self.cursor.execute(sql)
         for row in res.fetchall():
             song = Song(*row)
