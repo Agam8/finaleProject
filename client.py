@@ -1,23 +1,143 @@
 __author__ = 'Agam'
 
 import datetime
+import sys
 import socket, time
 import hashlib
+import ssl
 import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from sqlCommands import Song
-DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
+import customtkinter as ctk
+
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
 TEST = False
-token_dict={}
+token_dict = {}
 token_lock = threading.Lock()
-UDP_PORT=5555
-TCP_PORT=7777
-TOKEN_PORT=9999
+UDP_PORT = 5555
+TCP_PORT = 7777
+TOKEN_PORT = 9999
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
+
+
+class App(ctk.CTk):
+    def __init__(self,cli_s):
+        ctk.set_appearance_mode("light")
+        ctk.CTk.__init__(self)
+        self.geometry('1000x1000')
+        self._frame = None
+        self.cli_s = cli_s
+        self.switch_frame(LoginOrSignUp)
+
+
+    def switch_frame(self, frame_class):
+        new_frame = frame_class(self)
+        if self._frame is not None:
+            self._frame.destroy()
+        self._frame = new_frame
+
+    def get_cli_socket(self):
+        return self.cli_s
+
+class LoginOrSignUp(ctk.CTkFrame):
+    def __init__(self, master):
+        self.master=master
+        ctk.CTkFrame.__init__(self, master)
+        self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
+
+        self.cli_s = self.master.get_cli_socket()
+        signed = True
+        title_label = ctk.CTkLabel(self, text='Welcome!', font=('Arial', 18))
+        title_label.pack(pady=10)
+
+        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12),command=lambda: self.master.switch_frame(Login))
+        login_button.pack(pady=10)
+
+        signup_button = ctk.CTkButton(self, text='Sign up', font=('Arial', 12),command=lambda: self.master.switch_frame(Signup))
+        signup_button.pack(pady=10)
+
+class Signup(ctk.CTkFrame):
+    def __init__(self, master):
+        print('got to signup frame')
+        ctk.CTkFrame.__init__(self, master)
+        self.logged = False
+        self.signed = False
+        self.username = ''
+        self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
+        title_label = ctk.CTkLabel(self, text='Sign Up', font=('Arial', 18),text_color='#6DC868')
+        title_label.pack(pady=10)
+
+        username_label = ctk.CTkLabel(self, text='Username:', font=('Arial', 12))
+        username_label.pack(pady=5)
+
+        self.username_entry = ctk.CTkEntry(self, font=('Arial', 12))
+        self.username_entry.pack(pady=5)
+
+        password_label = ctk.CTkLabel(self, text='Password:', font=('Arial', 12) )
+        password_label.pack(pady=5)
+
+        self.password_entry = ctk.CTkEntry(self, show='*', font=('Arial', 12))
+        self.password_entry.pack(pady=5)
+
+        login_button = ctk.CTkButton(self, text='signup', font=('Arial', 12), command=self.signup)
+        login_button.pack(pady=10)
+
+    def signup(self):
+        print('got to login')
+
+class Login(ctk.CTkFrame):
+    def __init__(self, master):
+        ctk.CTkFrame.__init__(self, master)
+        self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
+        self.logged = False
+        self.signed = False
+        self.username = ''
+        self.cli_s=master.cli_s
+
+        title_label = ctk.CTkLabel(self, text='Login', font=('Arial', 18))
+        title_label.pack(pady=10)
+
+        username_label = ctk.CTkLabel(self, text='Username:', font=('Arial', 12))
+        username_label.pack(pady=5)
+
+        self.username_entry = ctk.CTkEntry(self, font=('Arial', 12))
+        self.username_entry.pack(pady=5)
+
+        password_label = ctk.CTkLabel(self, text='Password:', font=('Arial', 12))
+        password_label.pack(pady=5)
+
+        self.password_entry = ctk.CTkEntry(self, show='*', font=('Arial', 12))
+        self.password_entry.pack(pady=5)
+
+        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12), command=self.login)
+        login_button.pack(pady=10)
+
+
+    def login(self):
+        self.username = self.username_entry.get()
+        password = self.password_entry.get()
+        while not self.logged:
+            to_send = f"LOG|{self.username}|{password}"
+            send_with_size(self.cli_s, to_send)
+
+            # Receive authentication result from server
+            auth_result = recv_by_size(self.cli_s)
+            if auth_result[-2:] == 'OK':
+                self.logged = True
+            if auth_result == "EXT":
+                break
+        if not self.logged:
+           self.username = ''
+        else:
+            self.master.switch_frame(MainScreen)
+def MainScreen()
+
+
+
 
 def token_server(cli_s, cli_path, exit_all):
     while True:
@@ -32,6 +152,43 @@ def token_server(cli_s, cli_path, exit_all):
     return
 
 
+def login(cli_s):
+    logged = False
+    signed = True
+    username = ''
+    sign_or_log = input("do you have an account or do you want to sign in? enter 1 to login and 2 to sign up>")
+    if sign_or_log == '2':
+        signed = False
+        while not signed:
+            username = input('please enter you new username> ')
+            password = input('please enter your new password> ')
+            confirm_pass = input('please rewrite your password> ')
+            if password == confirm_pass:
+                to_send = f'SGN|{username}|{password}'
+                send_with_size(cli_s, to_send)
+                result = recv_by_size(cli_s)
+                if result[-4:] == 'sign':
+                    signed = True
+                elif result[-4:] == 'exst':
+                    print('username already exists or is currently logged, please try a different user')
+            else:
+                print(' please re-enter your credentials')
+
+    while not logged and signed:
+        username = input("please enter your username> ")
+        password = input("please enter your password> ")
+        # Send username and password to server
+        to_send = f"LOG|{username}|{password}"
+        send_with_size(cli_s, to_send)
+
+        # Receive authentication result from server
+        auth_result = recv_by_size(cli_s)
+        if auth_result[-2:] == 'OK':
+            logged = True
+        if auth_result == "EXT":
+            break
+    return logged, username
+
 
 def udp_log(side, message):
     with open("udp_" + side + "_log.txt", 'a') as log:
@@ -40,7 +197,7 @@ def udp_log(side, message):
             print(message)
 
 
-def manu(cli_path, local_files):
+def manu(username, local_files):
     print("\n=============\n" +
           "1. SCH - show server file list\n" +
           "2. SHR - share my files \n" +
@@ -55,12 +212,12 @@ def manu(cli_path, local_files):
         return "q"
     elif data == "1":
         keyword = input("search for:")
-        return "SCH|"+keyword
+        return "SCH|" + keyword
 
     elif data == "2":
         to_send = "SHR|" + str(len(local_files))
         for file, song in local_files.items():
-            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}"
+            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{username}~{song.size}"
         return to_send
     elif data == "3":
         fn = input("enter file name>")
@@ -73,33 +230,39 @@ def manu(cli_path, local_files):
     else:
         return "RULIVE"
 
+
 """
 def play_song(cli_path, song_name):
     print(f"playing {song_name} from your library")
     playsound.playsound(os.path.join(cli_path, song_name))
 """
 
-def load_local_files(cli_path):
+
+def load_local_files(cli_path, username):
     d = {}
     for f in os.listdir(cli_path):
         full_name = os.path.join(cli_path, f)
         if DEBUG:
             print("f " + full_name + " " + str(os.path.isfile(full_name)))
         if os.path.isfile(full_name) and f.endswith(".mp3"):
-            d[f] = Song(f,input(f'{f} name: '),input(f'{f} artist: '),input(f'{f} genre: '),size=os.path.getsize(full_name))
+            d[f] = Song(f, input(f'{f} name: '), input(f'{f} artist: '), input(f'{f} genre: '), username,
+                        size=os.path.getsize(full_name))
     return d
+
 
 def check_valid_token(token):
     global token_dict
     print('got to check token')
     if token in token_dict.keys():
-        time_difference = (datetime.datetime.now() - datetime.datetime.strptime(token_dict[token],DATETIME_FORMAT)).seconds
-        if time_difference < 7200: # 2 hours
+        time_difference = (
+                    datetime.datetime.now() - datetime.datetime.strptime(token_dict[token], DATETIME_FORMAT)).seconds
+        if time_difference < 7200:  # 2 hours
             token_lock.acquire()
             del token_dict[token]
             token_lock.release()
             return True
     return False
+
 
 def udp_server(cli_path, local_files, exit_all):
     """
@@ -133,7 +296,7 @@ def udp_server(cli_path, local_files, exit_all):
                 fn = fields[0]
                 fsize = int(fields[1])
                 ftoken = fields[2]
-                print(fn,fsize,ftoken)
+                print(fn, fsize, ftoken)
                 if check_valid_token(ftoken):
                     if fn in local_files.keys():
                         if local_files[fn].size == fsize and fsize > 0:
@@ -149,7 +312,7 @@ def udp_server(cli_path, local_files, exit_all):
                     else:
                         udp_log("server", "file not found " + fn)
                 else:
-                    udp_log("server", "invalid token "+ ftoken)
+                    udp_log("server", "invalid token " + ftoken)
         except socket.error as e:
             print("-Sock error:" + str(e.args) + " " + e.message)
             if e.errno == 10048:
@@ -361,12 +524,18 @@ def udp_client(cli_path, ip, fn, size, token):
             udp_log('client', "Send failed or size = 0")
     udp_sock.close()
 
-def data_recv(data,cli_path):
+
+def data_recv(data, cli_path):
     global token_dict
 
     action = data[:8]
     fields = data[9:].split("|")
-    if action == "SCH_BACK":
+    if action == 'LOG_BACK':
+        if fields[0] == 'OK':
+            print('logged!')
+        else:
+            print('not logged')
+    elif action == "SCH_BACK":
         print("\n File List")
         for f in fields:
             info = f.split("~")
@@ -388,7 +557,7 @@ def data_recv(data,cli_path):
         ftoken = fields[3]
         if fip != "0.0.0.0":
             print('got to udp client')
-            udp_cli = threading.Thread(target=udp_client, args=(cli_path, fip, fname, fsize,ftoken))
+            udp_cli = threading.Thread(target=udp_client, args=(cli_path, fip, fname, fsize, ftoken))
             udp_cli.start()
             print("Run udp client to download the file " + fname + " from " + fip)
             udp_cli.join()
@@ -396,7 +565,7 @@ def data_recv(data,cli_path):
             pass
             # Todo - ask file from server
 
-    elif action == "TKN_BACK": # server sends to listening client
+    elif action == "TKN_BACK":  # server sends to listening client
         token = fields[0]
         start_time = fields[1]
         token_lock.acquire()
@@ -411,12 +580,24 @@ def data_recv(data,cli_path):
 
 
 def main(cli_path, server_ip):
-    cli_s = socket.socket()
-
-    local_files = load_local_files(cli_path)
     print("before connect ip = " + server_ip)
-    cli_s.connect((server_ip, TCP_PORT))
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # connect to the server
+    client_socket.connect((server_ip, TCP_PORT))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.load_verify_locations(r'cert\cert.pem')
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    # create a socket and connect to the server
+    cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
+
     exit_all = False
+
+    logged, username = login(cli_s)
+    if not logged:
+        return
+
+    local_files = load_local_files(cli_path, username)
     udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
     udp_srv.start()
     time.sleep(0.3)
@@ -424,7 +605,49 @@ def main(cli_path, server_ip):
     token_srv.start()
     time.sleep(0.3)
     while True:
-        data = manu(cli_path, local_files)
+        data = manu(username, local_files)
+
+        if data == "q":
+            break
+
+        send_with_size(cli_s, data)
+
+    cli_s.close()
+    exit_all = True
+    udp_srv.join()
+    token_srv.join()
+    print("Main Client -  Bye Bye")
+
+
+def main_test(cli_path, server_ip):
+    print("before connect ip = " + server_ip)
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # connect to the server
+    client_socket.connect((server_ip, TCP_PORT))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.load_verify_locations(r'cert\cert.pem')
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    # create a socket and connect to the server
+    cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
+
+    exit_all = False
+    app = App(cli_s)
+    app.mainloop()
+
+    #logged, username = login(cli_s)
+    #if not logged:
+    #    return
+
+    local_files = load_local_files(cli_path, username)
+    udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
+    udp_srv.start()
+    time.sleep(0.3)
+    token_srv = threading.Thread(target=token_server, args=(cli_s, cli_path, exit_all))
+    token_srv.start()
+    time.sleep(0.3)
+    while True:
+        data = manu(username, local_files)
 
         if data == "q":
             break
@@ -440,8 +663,10 @@ def main(cli_path, server_ip):
 
 if __name__ == "__main__":
     if len(argv) > 2:
-        main(argv[1], argv[2])
+        # main(argv[1], argv[2])
+        sys.path.append(r"E:\finalProject\venv\Lib\site-packages\customtkinter")
+        main_test(argv[1], argv[2])
+
     else:
         print("USAGE : <enter client folder> <server_ip>")
         exit()
-

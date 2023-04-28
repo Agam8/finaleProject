@@ -1,18 +1,19 @@
 __author__ = 'Agam'
 
 import socket
-import os
+import ssl
 import queue, threading, time, datetime
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 import secrets
 import string
 import sqlCommands
-from token import Token
+from token_config import Token
 TCP_PORT=7777
 DEBUG = True
 exit_all = False
 songs_database = sqlCommands.SongsORM('server_database.db')
+users_database = sqlCommands.UserORM('server_database.db')
 files_lock = threading.Lock()
 current_tokens = {}
 token_lock = threading.Lock()
@@ -22,10 +23,31 @@ def create_token():
     secure_str = ''.join((secrets.choice(string.ascii_letters + string.digits) for i in range(16)))
     return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
 
-"""def login(cli_ip):
-    username = input('please enter your username:')
-    password = input('please enter your password:')
-    do_action()"""
+def login(client_socket,cli_ip):
+    tries = 0
+    logged = False
+    username=''
+    data = recv_by_size(client_socket)
+    while data[:3] == 'SGN':
+        to_send = do_action(data, cli_ip)
+        send_with_size(client_socket, to_send)
+        data = recv_by_size(client_socket)
+
+    while tries < 6 and not logged:
+        to_send = do_action(data,cli_ip)
+        if to_send[-2:] == 'OK':
+            logged =  True
+            username = data.split('|')[1]
+        else:
+            if tries ==5:
+                to_send = "EXT"
+        send_with_size(client_socket, to_send)
+        data = recv_by_size(client_socket)
+        tries -= 1
+    # ssl_socket.close()
+    return logged, username
+
+
 def handle_token(cli_ip,sock):
     while True:
         if exit_all:
@@ -39,33 +61,44 @@ def handle_token(cli_ip,sock):
 def handle_client(sock, tid, cli_ip):
     global exit_all
     print("New Client num " + str(tid))
-    token_server = threading.Thread(target=handle_token,args=(cli_ip,sock))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(r'cert\cert.pem', r'cert\key.pem')
+    client_socket = context.wrap_socket(sock, server_side=True)
+
+    logged, username= login(client_socket, cli_ip)
+
+    if not logged:
+        return
+    if DEBUG:
+        print(f'user:{username} is logged in from ip:{cli_ip}')
+    token_server = threading.Thread(target=handle_token,args=(cli_ip,client_socket))
     token_server.start()
     while not exit_all:
         try:
-
-            data = recv_by_size(sock)
+            data = recv_by_size(client_socket)
             if data == "":
                 print("Error: Seems Client DC")
+                users_database.logout(username)
                 break
 
             to_send = do_action(data, cli_ip)
 
-            send_with_size(sock, to_send)
+            send_with_size(client_socket, to_send)
 
         except socket.error as err:
             if err.errno == 10054:
                 # 'Connection reset by peer'
-                print("Error %d Client is Gone. %s reset by peer." % (err.errno, str(sock)))
+                print("Error %d Client is Gone. %s reset by peer." % (err.errno, str(client_socket)))
                 break
             else:
-                print("%d General Sock Error Client %s disconnected" % (err.errno, str(sock)))
+                print("%d General Sock Error Client %s disconnected" % (err.errno, str(client_socket)))
                 break
 
         except Exception as err:
             print("General Error:", err)
             break
     token_server.join()
+    users_database.logout(username)
     sock.close()
 
 
@@ -87,7 +120,21 @@ def do_action(data, cli_ip):
             print("Got client request " + action + " -- " + str(fields))
         answer = action + "_BACK"
 
-        if action == "SCH":
+        if action == "LOG":
+            username = fields[0]
+            password = fields[1]
+            verify = users_database.login(username,password,cli_ip)
+            if verify:
+
+                to_send = answer + "|"+"OK"
+            else:
+                to_send = answer+ "|"+"NO"
+        elif action == "SGN":
+            username = fields[0]
+            password = fields[1]
+            valid, msg = users_database.signup(username,password,cli_ip)
+            to_send = answer + "|"+msg
+        elif action == "SCH":
             print(fields[0])
             songs = songs_database.search_songs(fields[0])
             if len(songs) == 0:
@@ -104,7 +151,7 @@ def do_action(data, cli_ip):
             files_lock.acquire()
             songs_database.add_client_folder(fields, cli_ip)
             files_lock.release()
-            to_send = answer + "|Ok"
+            to_send = answer + "|OK"
         elif action == "LNK":
             fn = fields[0]
             exists = songs_database.song_exists(fn)
@@ -153,6 +200,7 @@ def load_files_from_server_folder(srv_path):
     global songs_database
     songs_database.add_server_folder(srv_path)
 
+
 def main(srv_path):
     global exit_all
     exit_all = False
@@ -183,6 +231,7 @@ def main(srv_path):
     for s, t in clients.items():
         t.join()
     manager.join()
+    users_database.logout_all()
 
     s.close()
 
