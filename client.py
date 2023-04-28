@@ -10,6 +10,7 @@ from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from sqlCommands import Song
 import customtkinter as ctk
+import tkinter as tk
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
@@ -22,15 +23,17 @@ TCP_PORT = 7777
 TOKEN_PORT = 9999
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
-
+LOGGED = False
 
 class App(ctk.CTk):
     def __init__(self,cli_s):
-        ctk.set_appearance_mode("light")
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme('green')
         ctk.CTk.__init__(self)
         self.geometry('1000x1000')
         self._frame = None
         self.cli_s = cli_s
+        self.username = ''
         self.switch_frame(LoginOrSignUp)
 
 
@@ -42,6 +45,10 @@ class App(ctk.CTk):
 
     def get_cli_socket(self):
         return self.cli_s
+    def get_username(self):
+        return self.username
+    def set_username(self,username):
+        self.username=username
 
 class LoginOrSignUp(ctk.CTkFrame):
     def __init__(self, master):
@@ -113,14 +120,15 @@ class Login(ctk.CTkFrame):
         self.password_entry = ctk.CTkEntry(self, show='*', font=('Arial', 12))
         self.password_entry.pack(pady=5)
 
-        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12), command=self.login)
+        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12), command=self.login, fg_color='#6DC868')
         login_button.pack(pady=10)
 
 
     def login(self):
-        self.username = self.username_entry.get()
-        password = self.password_entry.get()
+        global LOGGED
         while not self.logged:
+            self.username = self.username_entry.get()
+            password = self.password_entry.get()
             to_send = f"LOG|{self.username}|{password}"
             send_with_size(self.cli_s, to_send)
 
@@ -128,13 +136,26 @@ class Login(ctk.CTkFrame):
             auth_result = recv_by_size(self.cli_s)
             if auth_result[-2:] == 'OK':
                 self.logged = True
-            if auth_result == "EXT":
+            elif auth_result == "EXT":
                 break
+            else:
+                tk.messagebox.showerror('Error', 'invalid username or password!')
+                return
         if not self.logged:
            self.username = ''
         else:
+            logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
+            logging_label.pack(pady=5)
+            self.master.set_username(self.username)
             self.master.switch_frame(MainScreen)
-def MainScreen()
+
+class MainScreen(ctk.CTkFrame):
+    def __init__(self, master):
+        ctk.CTkFrame.__init__(self, master)
+        self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
+        logging_label = ctk.CTkLabel(self, text='got to main screen! welcome!', font=('Arial', 12))
+        logging_label.pack(pady=5)
+
 
 
 
@@ -632,12 +653,12 @@ def main_test(cli_path, server_ip):
     cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
 
     exit_all = False
+    username = ''
     app = App(cli_s)
     app.mainloop()
-
-    #logged, username = login(cli_s)
-    #if not logged:
-    #    return
+    if LOGGED:
+        username = app.get_username()
+        app.switch_frame(MainScreen)
 
     local_files = load_local_files(cli_path, username)
     udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
