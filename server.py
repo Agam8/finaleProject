@@ -24,7 +24,7 @@ def create_token():
     return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
 
 def login(client_socket,cli_ip):
-    tries = 0
+    tries = 5
     logged = False
     username=''
     data = recv_by_size(client_socket)
@@ -33,14 +33,13 @@ def login(client_socket,cli_ip):
         send_with_size(client_socket, to_send)
         data = recv_by_size(client_socket)
 
-    while tries < 6 and not logged:
+    while not logged:
         to_send = do_action(data,cli_ip)
         if to_send[-2:] == 'OK':
             logged =  True
             username = data.split('|')[1]
-        else:
-            if tries ==5:
-                to_send = "EXT"
+        elif tries == 0:
+            to_send = "EXT"
         send_with_size(client_socket, to_send)
         data = recv_by_size(client_socket)
         tries -= 1
@@ -140,10 +139,10 @@ def do_action(data, cli_ip):
             if len(songs) == 0:
                 answer += ''
             else:
-                print(len(songs))
                 for song in songs:
-                    print(song)
-                    answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.ip}~{song.size}"
+                    is_available = users_database.is_available(song.file_name)
+                    username = songs_database.get_user_by_song(song.file_name)
+                    answer += f"|{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
                     print('current answer:', answer)
             to_send = answer
 

@@ -119,7 +119,7 @@ class UserORM():
                             INSERT INTO Users (
                                 username, password, current_ip, is_logged
                             ) VALUES (?, ?, ?, ?)
-                        """, (username, secure_pass, cli_ip, 0))
+                        """, (username, secure_pass, cli_ip, 1))
             self.commit()
             self.close_DB()
             return True, 'sign'
@@ -184,6 +184,22 @@ class UserORM():
         self.close_DB()
         return user
 
+    def is_available(self, file_name):
+        self.open_DB()
+        user = None
+        sql = f"SELECT * FROM songs WHERE file_name='{file_name}';"
+        res = self.cursor.execute(sql)
+        row = res.fetchone()
+        if row is not None:
+            user_id = row[4]
+            sql = f"SELECT * FROM logged_users WHERE user_id={user_id};"
+            res = self.cursor.execute(sql)
+            row = res.fetchone()
+            self.close_DB()
+            return row is not None
+        else:
+            self.close_DB()
+            return False
 
 class Song(object):
     def __init__(self, file_name, song_name, artist, genre, committed_user, ip='', size=''):
@@ -341,16 +357,27 @@ class SongsORM():
         return [Song(*row) for row in rows]
 
     # connected functions to Users table
-    def get_songs_by_user(self, user_id):
+    def get_songs_by_user(self, user):
         self.open_DB()
         songs = []
-        sql = f"SELECT * FROM songs WHERE committed_user={user_id};"
+        sql = f"SELECT * FROM songs WHERE committed_user=={user};"
         res = self.cursor.execute(sql)
         for row in res.fetchall():
             song = Song(*row)
             songs.append(song)
         self.close_DB()
         return songs
+    def get_user_by_song(self,file_name):
+        self.open_DB()
+        user = ''
+        sql = f"SELECT committed_user FROM songs WHERE file_name == {file_name}"
+        res = self.cursor.execute(sql)
+        user = res.fetchone()
+        self.close_DB()
+        return user
+
+
+
 
 
 def main():

@@ -24,9 +24,13 @@ TOKEN_PORT = 9999
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
 LOGGED = False
+USERNAME = ''
+exit_all = False
+CLI_PATH = ''
 
 class App(ctk.CTk):
-    def __init__(self,cli_s):
+    def __init__(self,cli_s,cli_path):
+        global CLI_PATH
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme('green')
         ctk.CTk.__init__(self)
@@ -34,7 +38,13 @@ class App(ctk.CTk):
         self._frame = None
         self.cli_s = cli_s
         self.username = ''
+        CLI_PATH = cli_path
         self.switch_frame(LoginOrSignUp)
+        if not LOGGED:
+            tk.messagebox.showerror('Error',
+                                    "Couldn't log in. Please Try Again Later")
+            return
+
 
 
     def switch_frame(self, frame_class):
@@ -42,6 +52,7 @@ class App(ctk.CTk):
         if self._frame is not None:
             self._frame.destroy()
         self._frame = new_frame
+        print('switched to ',frame_class)
 
     def get_cli_socket(self):
         return self.cli_s
@@ -50,6 +61,206 @@ class App(ctk.CTk):
     def set_username(self,username):
         self.username=username
 
+class MainApp(ctk.CTkFrame):
+    def __init__(self, master):
+        self.master=master
+        ctk.CTkFrame.__init__(self, master)
+        self.cli_s = master.cli_s
+        self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
+        self.local_files = load_local_files(CLI_PATH, USERNAME)
+        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, self.local_files, exit_all))
+        self.udp_srv.start()
+        time.sleep(0.3)
+        self.token_srv = threading.Thread(target=self.token_server)
+        self.token_srv.start()
+        time.sleep(0.3)
+        self.search_results = None
+
+    def token_server(self):
+        while True:
+            data = recv_by_size(self.cli_s)
+            if data == "" or exit_all:
+                print("seems server DC")
+                break
+            if len(data) < 8:
+                print("seems bad message format:" + data)
+                break
+            self.data_recv(data)
+        return
+
+    def data_recv(self,data):
+        global token_dict
+        action = data[:8]
+        fields = data[9:].split("|")
+        if action == 'LOG_BACK':
+            if fields[0] == 'OK':
+                print('logged!')
+            else:
+                print('not logged')
+        elif action == "SCH_BACK":
+            if self.search_results != None:
+                self.search_results.destroy()
+            self.search_results = SearchResult(self,fields)
+
+        elif action == "SHR_BACK":
+            print("Share status: " + data)
+
+        elif action == "UPD_BACK":
+            print("Got " + data)
+
+        elif action == "LNK_BACK":
+            fname = fields[0]
+            fip = fields[1]
+            fsize = int(fields[2])
+            ftoken = fields[3]
+            if fip != "0.0.0.0":
+                print('got to udp client')
+                udp_cli = threading.Thread(target=udp_client, args=(CLI_PATH, fip, fname, fsize, ftoken))
+                udp_cli.start()
+                print("Run udp client to download the file " + fname + " from " + fip)
+                udp_cli.join()
+            else:
+                pass
+                # Todo - ask file from server
+
+        elif action == "TKN_BACK":  # server sends to listening client
+            token = fields[0]
+            start_time = fields[1]
+            token_lock.acquire()
+            token_dict[token] = start_time
+            print(token_dict)
+            token_lock.release()
+
+        elif action == "RUL_BACK":
+            print("Server answer and Live")
+        else:
+            print("Unknown action back " + action)
+
+    def loop(self):
+        global exit_all
+        title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=('Arial', 18), text_color='#6DC868')
+        title_label.pack(pady=10)
+
+        ctk.CTkLabel(self,
+                     text='search',
+                     text_font=('Verdana', 17)).pack(pady=10)
+
+        img = tk.PhotoImage(file="search.png")
+        self.search_entry = ctk.CTkEntry(self, font=('Arial', 12))
+        self.search_entry.pack(pady=5)
+        search_button = ctk.CTkButton(self, image=img, command=self.search)
+        search_button.pack(pady=10)
+        while True:
+            data = manu()
+
+            if data == "q":
+                break
+
+            send_with_size(self.cli_s, data)
+
+        self.cli_s.close()
+        exit_all = True
+        self.udp_srv.join()
+        self.token_srv.join()
+
+    def search(self):
+        keyword = self.search_entry.get()
+        to_send = "SCH|" + keyword
+        send_with_size(self.cli_s,to_send)
+
+    def manu(self):
+        print("\n=============\n" +
+              "1. SCH - show server file list\n" +
+              "2. SHR - share my files \n" +
+              "3. LNK - get file link \n" +
+              "4. PLY - play mp3 file\n\n"
+              "9. exit\n>" +
+              "=============\n\n")
+
+        data = input("Select number > ")
+
+        if data == "9":
+            return "q"
+        elif data == "1":
+            keyword = input("search for:")
+            return "SCH|" + keyword
+
+        elif data == "2":
+            to_send = "SHR|" + str(len(self.local_files))
+            for file, song in self.local_files.items():
+                to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
+            return to_send
+        elif data == "3":
+            fn = input("enter file name>")
+            return "LNK|" + fn
+        elif data == "4":
+            sn = input("enter song file name>")
+            # play_song(cli_path, sn)
+            return "RULIVE"
+
+        else:
+            return "RULIVE"
+
+class SearchResult(ctk.CTkFrame):
+    def __init__(self, master, fields):
+        self.master = master
+        ctk.CTkFrame.__init__(self, master)
+        self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
+        title_label = ctk.CTkLabel(self, text='Search Results', font=('Arial', 18))
+        title_label.pack(pady=10)
+
+        # Create a table to display the search results
+        table_frame = ctk.CTkFrame(self)
+        table_frame.pack(pady=10)
+
+        # Create the headers for the table
+        headers = ['Song', 'Artist', 'Genre', 'Size', 'Username', 'Available']
+        for i, header in enumerate(headers):
+            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 12), padx=10, pady=5,
+                                     borderwidth=1, relief='solid')
+            header_label.grid(row=0, column=i, sticky='w')
+
+        # Add the search results to the table
+        i=1
+        for f in fields:
+            info = f.split("~")
+            if len(info) > 1:
+                song_label = ctk.CTkLabel(table_frame, text=info[0], font=('Arial', 12), padx=10,
+                                       pady=5,
+                                       borderwidth=1, relief='solid')
+                song_label.grid(row=i + 1, column=0, sticky='w')
+
+                artist_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 12), padx=10,
+                                         pady=5, borderwidth=1, relief='solid')
+                artist_label.grid(row=i + 1, column=1, sticky='w')
+
+                genre_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 12), padx=10,
+                                        pady=5,
+                                        borderwidth=1, relief='solid')
+                genre_label.grid(row=i + 1, column=2, sticky='w')
+
+                size_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 12), padx=10,
+                                       pady=5,
+                                       borderwidth=1, relief='solid')
+                size_label.grid(row=i + 1, column=4, sticky='w')
+
+                username_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 12),
+                                               padx=10, pady=5, borderwidth=1, relief='solid')
+                username_label.grid(row=i + 1, column=3, sticky='w')
+
+                available_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 12),
+                                            padx=10, pady=5, borderwidth=1, relief='solid')
+                available_label.grid(row=i + 1, column=3, sticky='w')
+
+            else:
+                empty_label = ctk.CTkLabel(table_frame,text=f"No search results")
+                empty_label.pack(pady=10)
+            i+=1
+
+
+
+
+
 class LoginOrSignUp(ctk.CTkFrame):
     def __init__(self, master):
         self.master=master
@@ -57,7 +268,6 @@ class LoginOrSignUp(ctk.CTkFrame):
         self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
 
         self.cli_s = self.master.get_cli_socket()
-        signed = True
         title_label = ctk.CTkLabel(self, text='Welcome!', font=('Arial', 18))
         title_label.pack(pady=10)
 
@@ -67,13 +277,15 @@ class LoginOrSignUp(ctk.CTkFrame):
         signup_button = ctk.CTkButton(self, text='Sign up', font=('Arial', 12),command=lambda: self.master.switch_frame(Signup))
         signup_button.pack(pady=10)
 
+
 class Signup(ctk.CTkFrame):
     def __init__(self, master):
         print('got to signup frame')
         ctk.CTkFrame.__init__(self, master)
-        self.logged = False
         self.signed = False
         self.username = ''
+        self.cli_s = master.cli_s
+
         self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
         title_label = ctk.CTkLabel(self, text='Sign Up', font=('Arial', 18),text_color='#6DC868')
         title_label.pack(pady=10)
@@ -94,14 +306,35 @@ class Signup(ctk.CTkFrame):
         login_button.pack(pady=10)
 
     def signup(self):
-        print('got to login')
+        global USERNAME, LOGGED
+        while not self.signed:
+            self.username = self.username_entry.get()
+            password = self.password_entry.get()
+
+            to_send = f'SGN|{self.username}|{password}'
+            send_with_size(self.cli_s, to_send)
+            result = recv_by_size(self.cli_s)
+            if result[-4:] == 'sign':
+                self.signed = True
+                LOGGED = True
+                USERNAME =  self.username
+            elif result[-4:] == 'exst':
+                tk.messagebox.showerror('Error',
+                                        'username already exists or is currently logged, please try a different user')
+        if self.signed:
+            logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
+            logging_label.pack(pady=5)
+            self.master.set_username(self.username)
+            self.master.switch_frame(MainApp)
+
+
+
 
 class Login(ctk.CTkFrame):
     def __init__(self, master):
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
         self.logged = False
-        self.signed = False
         self.username = ''
         self.cli_s=master.cli_s
 
@@ -125,7 +358,7 @@ class Login(ctk.CTkFrame):
 
 
     def login(self):
-        global LOGGED
+        global LOGGED, USERNAME
         while not self.logged:
             self.username = self.username_entry.get()
             password = self.password_entry.get()
@@ -136,7 +369,11 @@ class Login(ctk.CTkFrame):
             auth_result = recv_by_size(self.cli_s)
             if auth_result[-2:] == 'OK':
                 self.logged = True
+                USERNAME = self.username
+                LOGGED = True
             elif auth_result == "EXT":
+                tk.messagebox.showerror('Error','exceeded maximum tries. Please try to log in later')
+                self.destroy()
                 break
             else:
                 tk.messagebox.showerror('Error', 'invalid username or password!')
@@ -147,30 +384,8 @@ class Login(ctk.CTkFrame):
             logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
             logging_label.pack(pady=5)
             self.master.set_username(self.username)
-            self.master.switch_frame(MainScreen)
+            self.master.switch_frame(MainApp)
 
-class MainScreen(ctk.CTkFrame):
-    def __init__(self, master):
-        ctk.CTkFrame.__init__(self, master)
-        self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        logging_label = ctk.CTkLabel(self, text='got to main screen! welcome!', font=('Arial', 12))
-        logging_label.pack(pady=5)
-
-
-
-
-
-def token_server(cli_s, cli_path, exit_all):
-    while True:
-        data = recv_by_size(cli_s)
-        if data == "" or exit_all:
-            print("seems server DC")
-            break
-        if len(data) < 8:
-            print("seems bad message format:" + data)
-            break
-        data_recv(data, cli_path)
-    return
 
 
 def login(cli_s):
@@ -250,13 +465,6 @@ def manu(username, local_files):
 
     else:
         return "RULIVE"
-
-
-"""
-def play_song(cli_path, song_name):
-    print(f"playing {song_name} from your library")
-    playsound.playsound(os.path.join(cli_path, song_name))
-"""
 
 
 def load_local_files(cli_path, username):
@@ -654,32 +862,8 @@ def main_test(cli_path, server_ip):
 
     exit_all = False
     username = ''
-    app = App(cli_s)
+    app = App(cli_s,cli_path)
     app.mainloop()
-    if LOGGED:
-        username = app.get_username()
-        app.switch_frame(MainScreen)
-
-    local_files = load_local_files(cli_path, username)
-    udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
-    udp_srv.start()
-    time.sleep(0.3)
-    token_srv = threading.Thread(target=token_server, args=(cli_s, cli_path, exit_all))
-    token_srv.start()
-    time.sleep(0.3)
-    while True:
-        data = manu(username, local_files)
-
-        if data == "q":
-            break
-
-        send_with_size(cli_s, data)
-
-    cli_s.close()
-    exit_all = True
-    udp_srv.join()
-    token_srv.join()
-    print("Main Client -  Bye Bye")
 
 
 if __name__ == "__main__":

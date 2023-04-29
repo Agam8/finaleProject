@@ -16,7 +16,7 @@ t[0].download(filename='testing.mp4')
 """
 
 # AudioSegment.from_file('Adele - Hello (Official Music Video).mp4')
-
+"""
 import datetime
 #import ctk
 import customtkinter as ctk
@@ -26,3 +26,14 @@ class App(ctk.CTk):
     def __init__(self):
         ctk.set_appearance_mode("light")
         ctk.CTk.__init__(self)
+"""
+
+class hello():
+    def __init__(self):
+        print(get_name())
+
+def get_name():
+    return 'agam'
+
+h = hello()
+
