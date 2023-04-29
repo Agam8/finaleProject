@@ -84,8 +84,9 @@ def handle_client(sock, tid, cli_ip):
                 break
 
             to_send = do_action(data, cli_ip)
-
             send_with_size(client_socket, to_send)
+            if to_send == 'LGO_BACK':
+                login(client_socket,cli_ip)
 
         except socket.error as err:
             if err.errno == 10054:
@@ -136,6 +137,9 @@ def do_action(data, cli_ip):
             password = fields[1]
             valid, msg = users_database.signup(username,password,cli_ip)
             to_send = answer + "|"+msg
+        elif action == 'LGO':
+            users_database.logout(fields[0])
+            to_send = answer
         elif action == "SCH":
             print(fields[0])
             songs = songs_database.search_songs(fields[0])
@@ -145,7 +149,7 @@ def do_action(data, cli_ip):
                 for song in songs:
                     is_available = users_database.is_available(song.file_name)
                     username = songs_database.get_user_by_song(song.file_name)
-                    answer += f"|{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
+                    answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
                     # print('current answer:', answer)
             to_send = answer
 

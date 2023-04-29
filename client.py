@@ -109,6 +109,7 @@ class MainApp(ctk.CTkFrame):
             print("Got " + data)
 
         elif action == "LNK_BACK":
+
             fname = fields[0]
             fip = fields[1]
             fsize = int(fields[2])
@@ -130,7 +131,8 @@ class MainApp(ctk.CTkFrame):
             token_dict[token] = start_time
             print(token_dict)
             token_lock.release()
-
+        elif action == 'LGO_BACK':
+            self.master.switch_frame(LoginOrSignUp)
         elif action == "RUL_BACK":
             print("Server answer and Live")
         else:
@@ -140,12 +142,14 @@ class MainApp(ctk.CTkFrame):
         global exit_all
         title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=('Arial', 18), text_color='#6DC868')
         title_label.pack(pady=10)
-
-        ctk.CTkLabel(self, text='search').pack(pady=10)
         self.search_entry = ctk.CTkEntry(self, font=('Arial', 12))
         self.search_entry.pack(pady=5)
         search_button = ctk.CTkButton(self, text='search', command=self.search)
         search_button.pack(pady=10)
+        """logout_button = ctk.CTkButton(self,text ='Logout', command=self.logout)
+        logout_button.place(relx=1, rely=0.1, anchor='ne')"""
+
+
         while True:
             data = self.manu()
 
@@ -163,11 +167,16 @@ class MainApp(ctk.CTkFrame):
         keyword = self.search_entry.get()
         to_send = "SCH|" + keyword
         send_with_size(self.cli_s,to_send)
-    def search_widgets(self,fields):
-        for widget in range(1,len(self.search_results)):
-            widget.destroy()
 
+    def logout(self):
+        global LOGGED
+        to_send = f'LGO|{USERNAME}'
+        send_with_size(self.cli_s,to_send)
+        LOGGED =False
 
+    def get_file(self,file_name):
+        to_send =  "LNK|" + file_name
+        send_with_size(self.cli_s, to_send)
 
     def manu(self):
         print("\n=============\n" +
@@ -262,7 +271,7 @@ class SearchResult(ctk.CTkFrame):
     def __init__(self, master, fields):
         self.master = master
         ctk.CTkFrame.__init__(self, master)
-        self.place(anchor='center',relx=0.5,rely=1,relheight=0.95,relwidth=0.95)
+        self.place(anchor='center',relx=0.5,rely=0.8, relheight=0.95,relwidth=0.95)
         title_label = ctk.CTkLabel(self, text='Search Results', font=('Arial', 18))
         title_label.pack(pady=10)
 
@@ -271,9 +280,9 @@ class SearchResult(ctk.CTkFrame):
         table_frame.pack(pady=10)
 
         # Create the headers for the table
-        headers = ['Song', 'Artist', 'Genre', 'Size', 'Username', 'Available']
+        headers = ['File Name','Song', 'Artist', 'Genre', 'Size', 'Username', 'Available','Download']
         for i, header in enumerate(headers):
-            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 12), padx=10, pady=5)
+            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
 
         # Add the search results to the table
@@ -281,33 +290,38 @@ class SearchResult(ctk.CTkFrame):
         for f in fields:
             info = f.split("~")
             if len(info) > 1:
-                song_label = ctk.CTkLabel(table_frame, text=info[0], font=('Arial', 12), padx=10,
-                                       pady=5)
+                file_name = ctk.CTkLabel(table_frame, text=info[0], font=('Arial', 14), padx=10, pady=5)
+                file_name.grid(row=i + 1, column=0, sticky='w')
 
-                song_label.grid(row=i + 1, column=0, sticky='w')
+                song_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 14), padx=10, pady=5)
+                song_label.grid(row=i + 1, column=1, sticky='w')
 
-                artist_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 12), padx=10,pady=5)
-                artist_label.grid(row=i + 1, column=1, sticky='w')
+                artist_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 14), padx=10,pady=5)
+                artist_label.grid(row=i + 1, column=2, sticky='w')
 
-                genre_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 12), padx=10, pady=5)
-                genre_label.grid(row=i + 1, column=2, sticky='w')
+                genre_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 14), padx=10, pady=5)
+                genre_label.grid(row=i + 1, column=3, sticky='w')
 
-                size_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 12), padx=10,pady=5)
-                size_label.grid(row=i + 1, column=3, sticky='w')
+                size_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 14), padx=10,pady=5)
+                size_label.grid(row=i + 1, column=4, sticky='w')
 
-                username_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 12),padx=10, pady=5)
-                username_label.grid(row=i + 1, column=4, sticky='w')
+                username_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 14),padx=10, pady=5)
+                username_label.grid(row=i + 1, column=5, sticky='w')
 
-                available_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 12),padx=10, pady=5)
-                available_label.grid(row=i + 1, column=5, sticky='w')
+                available_label = ctk.CTkLabel(table_frame, text=info[6], font=('Arial', 14),padx=10, pady=5)
+                available_label.grid(row=i + 1, column=6, sticky='w')
+                if info[6] == 'True':
+                    print('download is available')
+                    download_button = ctk.CTkButton(table_frame, command=lambda f=info[0]: self.master.get_file(f) ,text='Download!')
+                else:
+                    download_button = ctk.CTkButton(table_frame , text='Unavailable')
+                download_button.grid(row=i + 1, column=7, sticky='w')
+
 
             else:
                 empty_label = ctk.CTkLabel(table_frame,text=f"No search results")
                 empty_label.pack(pady=10)
             i+=1
-
-
-
 
 
 class LoginOrSignUp(ctk.CTkFrame):
