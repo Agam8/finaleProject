@@ -128,7 +128,6 @@ def do_action(data, cli_ip):
             password = fields[1]
             verify = users_database.login(username,password,cli_ip)
             if verify:
-
                 to_send = answer + "|"+"OK"
             else:
                 to_send = answer+ "|"+"NO"

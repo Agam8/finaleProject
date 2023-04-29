@@ -116,6 +116,7 @@ class MainApp(ctk.CTkFrame):
             ftoken = fields[3]
             if fip != "0.0.0.0":
                 print('got to udp client')
+                time.sleep(0.5)
                 udp_cli = threading.Thread(target=udp_client, args=(CLI_PATH, fip, fname, fsize, ftoken))
                 udp_cli.start()
                 print("Run udp client to download the file " + fname + " from " + fip)
