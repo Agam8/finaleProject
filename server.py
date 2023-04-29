@@ -34,16 +34,17 @@ def login(client_socket,cli_ip):
         data = recv_by_size(client_socket)
 
     while not logged:
+        if tries!=5:
+            data = recv_by_size(client_socket)
         to_send = do_action(data,cli_ip)
         if to_send[-2:] == 'OK':
-            logged =  True
+            logged = True
             username = data.split('|')[1]
         elif tries == 0:
             to_send = "EXT"
         send_with_size(client_socket, to_send)
-        data = recv_by_size(client_socket)
         tries -= 1
-    # ssl_socket.close()
+
     return logged, username
 
 
@@ -72,6 +73,8 @@ def handle_client(sock, tid, cli_ip):
         print(f'user:{username} is logged in from ip:{cli_ip}')
     token_server = threading.Thread(target=handle_token,args=(cli_ip,client_socket))
     token_server.start()
+    time.sleep(0.3)
+
     while not exit_all:
         try:
             data = recv_by_size(client_socket)
@@ -143,7 +146,7 @@ def do_action(data, cli_ip):
                     is_available = users_database.is_available(song.file_name)
                     username = songs_database.get_user_by_song(song.file_name)
                     answer += f"|{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
-                    print('current answer:', answer)
+                    # print('current answer:', answer)
             to_send = answer
 
         elif action == "SHR":

@@ -27,6 +27,8 @@ LOGGED = False
 USERNAME = ''
 exit_all = False
 CLI_PATH = ''
+local_files = {}
+SAVED_FILES = False
 
 class App(ctk.CTk):
     def __init__(self,cli_s,cli_path):
@@ -40,10 +42,6 @@ class App(ctk.CTk):
         self.username = ''
         CLI_PATH = cli_path
         self.switch_frame(LoginOrSignUp)
-        if not LOGGED:
-            tk.messagebox.showerror('Error',
-                                    "Couldn't log in. Please Try Again Later")
-            return
 
 
 
@@ -67,14 +65,16 @@ class MainApp(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
         self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
-        self.local_files = load_local_files(CLI_PATH, USERNAME)
-        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, self.local_files, exit_all))
+
+        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, local_files, exit_all))
         self.udp_srv.start()
         time.sleep(0.3)
         self.token_srv = threading.Thread(target=self.token_server)
         self.token_srv.start()
         time.sleep(0.3)
         self.search_results = None
+
+        self.loop()
 
     def token_server(self):
         while True:
@@ -98,7 +98,7 @@ class MainApp(ctk.CTkFrame):
             else:
                 print('not logged')
         elif action == "SCH_BACK":
-            if self.search_results != None:
+            if self.search_results is not None:
                 self.search_results.destroy()
             self.search_results = SearchResult(self,fields)
 
@@ -141,17 +141,13 @@ class MainApp(ctk.CTkFrame):
         title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=('Arial', 18), text_color='#6DC868')
         title_label.pack(pady=10)
 
-        ctk.CTkLabel(self,
-                     text='search',
-                     text_font=('Verdana', 17)).pack(pady=10)
-
-        img = tk.PhotoImage(file="search.png")
+        ctk.CTkLabel(self, text='search').pack(pady=10)
         self.search_entry = ctk.CTkEntry(self, font=('Arial', 12))
         self.search_entry.pack(pady=5)
-        search_button = ctk.CTkButton(self, image=img, command=self.search)
+        search_button = ctk.CTkButton(self, text='search', command=self.search)
         search_button.pack(pady=10)
         while True:
-            data = manu()
+            data = self.manu()
 
             if data == "q":
                 break
@@ -167,6 +163,11 @@ class MainApp(ctk.CTkFrame):
         keyword = self.search_entry.get()
         to_send = "SCH|" + keyword
         send_with_size(self.cli_s,to_send)
+    def search_widgets(self,fields):
+        for widget in range(1,len(self.search_results)):
+            widget.destroy()
+
+
 
     def manu(self):
         print("\n=============\n" +
@@ -181,13 +182,10 @@ class MainApp(ctk.CTkFrame):
 
         if data == "9":
             return "q"
-        elif data == "1":
-            keyword = input("search for:")
-            return "SCH|" + keyword
 
         elif data == "2":
-            to_send = "SHR|" + str(len(self.local_files))
-            for file, song in self.local_files.items():
+            to_send = "SHR|" + str(len(local_files))
+            for file, song in local_files.items():
                 to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
             return to_send
         elif data == "3":
@@ -201,11 +199,70 @@ class MainApp(ctk.CTkFrame):
         else:
             return "RULIVE"
 
+class LocalFilesFrame(ctk.CTkFrame):
+    def __init__(self, master):
+        self.files_list = [f for f in os.listdir(CLI_PATH) if os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.mp3')]
+        if len(self.files_list) == 0:
+            master.switch_frame(MainApp)
+            return
+        self.master = master
+        ctk.CTkFrame.__init__(self, master)
+        self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
+
+        title_label = ctk.CTkLabel(self, text='Add Local Files', font=('Arial', 18))
+        title_label.pack(pady=10)
+
+        # Create a table to display the song information
+        table_frame = ctk.CTkFrame(self)
+        table_frame.pack(pady=10)
+
+        # Create the headers for the table
+        headers = ['File Name', 'Song Name', 'Artist', 'Genre']
+        for i, header in enumerate(headers):
+            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 12), padx=10, pady=5)
+            header_label.grid(row=0, column=i, sticky='w')
+
+        # Get the local files in the directory
+        self.files_list = [f for f in os.listdir(CLI_PATH) if os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.mp3')]
+        print(self.files_list)
+        # Add the rows to the table for each local file
+        for i, file_name in enumerate(self.files_list):
+            # Create the labels for the file name, song name, artist, and genre
+            file_name_label = ctk.CTkLabel(table_frame, text=file_name, font=('Arial', 12), padx=10, pady=5)
+            file_name_label.grid(row=i+1, column=0, sticky='w')
+
+            song_name_entry = ctk.CTkEntry(table_frame, font=('Arial', 12))
+            song_name_entry.grid(row=i+1, column=1, sticky='w')
+
+            artist_entry = ctk.CTkEntry(table_frame, font=('Arial', 12))
+            artist_entry.grid(row=i+1, column=2, sticky='w')
+
+            genre_entry = ctk.CTkEntry(table_frame, font=('Arial', 12))
+            genre_entry.grid(row=i+1, column=3, sticky='w')
+
+            # Save the information when the user clicks the save button
+            save_button = ctk.CTkButton(table_frame, text='Save', font=('Arial', 12), command=lambda f=file_name, sn=song_name_entry, a=artist_entry, g=genre_entry: self.save_song_info(f, sn.get(), a.get(), g.get()))
+            save_button.grid(row=i+1, column=4, padx=10)
+
+
+
+
+    def save_song_info(self,file_name, song_name, artist, genre):
+        global local_files, SAVED_FILES
+        local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
+                    size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
+        saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=('Arial', 12), padx=10, pady=5)
+        saved_label.pack(pady=10)
+        if len(local_files)==len(self.files_list):
+            SAVED_FILES= True
+            self.master.switch_frame(MainApp)
+
+
 class SearchResult(ctk.CTkFrame):
     def __init__(self, master, fields):
         self.master = master
         ctk.CTkFrame.__init__(self, master)
-        self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
+        self.place(anchor='center',relx=0.5,rely=1,relheight=0.95,relwidth=0.95)
         title_label = ctk.CTkLabel(self, text='Search Results', font=('Arial', 18))
         title_label.pack(pady=10)
 
@@ -216,8 +273,7 @@ class SearchResult(ctk.CTkFrame):
         # Create the headers for the table
         headers = ['Song', 'Artist', 'Genre', 'Size', 'Username', 'Available']
         for i, header in enumerate(headers):
-            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 12), padx=10, pady=5,
-                                     borderwidth=1, relief='solid')
+            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 12), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
 
         # Add the search results to the table
@@ -226,31 +282,24 @@ class SearchResult(ctk.CTkFrame):
             info = f.split("~")
             if len(info) > 1:
                 song_label = ctk.CTkLabel(table_frame, text=info[0], font=('Arial', 12), padx=10,
-                                       pady=5,
-                                       borderwidth=1, relief='solid')
+                                       pady=5)
+
                 song_label.grid(row=i + 1, column=0, sticky='w')
 
-                artist_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 12), padx=10,
-                                         pady=5, borderwidth=1, relief='solid')
+                artist_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 12), padx=10,pady=5)
                 artist_label.grid(row=i + 1, column=1, sticky='w')
 
-                genre_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 12), padx=10,
-                                        pady=5,
-                                        borderwidth=1, relief='solid')
+                genre_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 12), padx=10, pady=5)
                 genre_label.grid(row=i + 1, column=2, sticky='w')
 
-                size_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 12), padx=10,
-                                       pady=5,
-                                       borderwidth=1, relief='solid')
-                size_label.grid(row=i + 1, column=4, sticky='w')
+                size_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 12), padx=10,pady=5)
+                size_label.grid(row=i + 1, column=3, sticky='w')
 
-                username_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 12),
-                                               padx=10, pady=5, borderwidth=1, relief='solid')
-                username_label.grid(row=i + 1, column=3, sticky='w')
+                username_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 12),padx=10, pady=5)
+                username_label.grid(row=i + 1, column=4, sticky='w')
 
-                available_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 12),
-                                            padx=10, pady=5, borderwidth=1, relief='solid')
-                available_label.grid(row=i + 1, column=3, sticky='w')
+                available_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 12),padx=10, pady=5)
+                available_label.grid(row=i + 1, column=5, sticky='w')
 
             else:
                 empty_label = ctk.CTkLabel(table_frame,text=f"No search results")
@@ -325,7 +374,7 @@ class Signup(ctk.CTkFrame):
             logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
             logging_label.pack(pady=5)
             self.master.set_username(self.username)
-            self.master.switch_frame(MainApp)
+            self.master.switch_frame(LocalFilesFrame)
 
 
 
@@ -384,7 +433,7 @@ class Login(ctk.CTkFrame):
             logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
             logging_label.pack(pady=5)
             self.master.set_username(self.username)
-            self.master.switch_frame(MainApp)
+            self.master.switch_frame(LocalFilesFrame)
 
 
 

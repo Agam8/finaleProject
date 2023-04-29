@@ -27,7 +27,7 @@ class App(ctk.CTk):
         ctk.set_appearance_mode("light")
         ctk.CTk.__init__(self)
 """
-
+"""
 class hello():
     def __init__(self):
         print(get_name())
@@ -35,5 +35,19 @@ class hello():
 def get_name():
     return 'agam'
 
-h = hello()
+h = hello()"""
+import sqlCommands
+songs_database = sqlCommands.SongsORM('server_database.db')
+users_database = sqlCommands.UserORM('server_database.db')
+songs = songs_database.search_songs('rock')
+answer = 'SCH_BACK'
+if len(songs) == 0:
+    answer += ''
+else:
+    for song in songs:
+        is_available = users_database.is_available(song.file_name)
+        print(is_available)
+        username = songs_database.get_user_by_song(song.file_name)
+        print(username)
+        answer += f"|{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
 

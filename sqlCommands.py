@@ -187,12 +187,14 @@ class UserORM():
     def is_available(self, file_name):
         self.open_DB()
         user = None
-        sql = f"SELECT * FROM songs WHERE file_name='{file_name}';"
+        sql = f"SELECT * FROM songs WHERE file_name=='{file_name}';"
         res = self.cursor.execute(sql)
         row = res.fetchone()
+        print(row)
         if row is not None:
-            user_id = row[4]
-            sql = f"SELECT * FROM logged_users WHERE user_id={user_id};"
+            username = row[4]
+            print(username)
+            sql = f"SELECT * FROM Users WHERE username=='{username}';"
             res = self.cursor.execute(sql)
             row = res.fetchone()
             self.close_DB()
@@ -370,9 +372,9 @@ class SongsORM():
     def get_user_by_song(self,file_name):
         self.open_DB()
         user = ''
-        sql = f"SELECT committed_user FROM songs WHERE file_name == {file_name}"
+        sql = f"SELECT committed_user FROM songs WHERE file_name == '{file_name}'"
         res = self.cursor.execute(sql)
-        user = res.fetchone()
+        user = res.fetchone()[0].strip("'")
         self.close_DB()
         return user
 
