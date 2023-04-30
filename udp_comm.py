@@ -17,8 +17,11 @@ token_lock = threading.Lock()
 class udp():
     def __init__(self):
         self.token_dict = {}
-    def set_token_dict(self,token_dict):
-        self.token_dict = token_dict
+
+    def set_token_dict(self,token,start_time):
+        token_lock.acquire()
+        self.token_dict[token] = start_time
+        token_lock.release()
     def get_token_dict(self):
         return token_dict
 

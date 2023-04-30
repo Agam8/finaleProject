@@ -130,3 +130,6 @@
 2023-04-29 21:38:12 - Just got part 436 file with 759 bytes pos = 112759 header 000000759,00000436,b0e367dd92e1f707762fac0aeb9e7b45 
 2023-04-29 21:38:22 - Failed to recv: None
 2023-04-29 21:38:22 - Something went wrong. cant download server_files\Brakhage - Outro.mp3
+2023-04-30 14:35:41 - Sent FRQ|Brakhage - No Coincidence.mp3|3265346|HJvWZJBQORchxizk to 10.0.0.14 5555
+2023-04-30 14:35:51 - Failed to recv: None
+2023-04-30 14:35:51 - Something went wrong. cant download songs_client_2\Brakhage - No Coincidence.mp3

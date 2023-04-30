@@ -127,7 +127,11 @@ class MainApp(ctk.CTkFrame):
                 pass
                 # Todo - ask file from server
 
-
+        elif action == "TKN_BACK":  # server sends to listening client
+            token = fields[0]
+            start_time = fields[1]
+            self.udp_com.set_token_dict(token,start_time)
+            print('added-- ', token, " --to dict")
         elif action == 'LGO_BACK':
             self.master.switch_frame(LoginOrSignUp)
         elif action == "RUL_BACK":
@@ -232,8 +236,8 @@ class ShowDir(ctk.CTkFrame):
             header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
 
-        i = 1
-        for file_name, song in local_files:
+
+        for i, song in enumerate(local_files):
             file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=('Arial', 14), padx=10, pady=5)
             file_name.grid(row=i + 1, column=0, sticky='w')
 
@@ -831,6 +835,7 @@ def main(cli_path, server_ip):
 
 if __name__ == "__main__":
     if len(argv) > 2:
+        sys.path.append(r"E:\finalProject\venv\Lib\site-packages\customtkinter")
         main(argv[1], argv[2])
 
     else:
