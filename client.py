@@ -11,7 +11,8 @@ from sys import argv
 from sqlCommands import Song
 import customtkinter as ctk
 import tkinter as tk
-
+import playsound
+from udp_comm import udp
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
@@ -65,14 +66,15 @@ class MainApp(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
         self.place(anchor='center',relx=0.5,rely=0.5,relheight=0.95,relwidth=0.95)
-
-        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, local_files, exit_all))
+        self.udp_com = udp()
+        self.udp_srv = threading.Thread(target=self.udp_com.udp_server, args=(CLI_PATH, local_files, exit_all))
         self.udp_srv.start()
         time.sleep(0.3)
         self.token_srv = threading.Thread(target=self.token_server)
         self.token_srv.start()
         time.sleep(0.3)
         self.search_results = None
+        self.files_frame = None
 
         self.loop()
 
@@ -117,7 +119,7 @@ class MainApp(ctk.CTkFrame):
             if fip != "0.0.0.0":
                 print('got to udp client')
                 time.sleep(0.5)
-                udp_cli = threading.Thread(target=udp_client, args=(CLI_PATH, fip, fname, fsize, ftoken))
+                udp_cli = threading.Thread(target=self.udp_com.udp_client, args=(CLI_PATH, fip, fname, fsize, ftoken))
                 udp_cli.start()
                 print("Run udp client to download the file " + fname + " from " + fip)
                 udp_cli.join()
@@ -125,13 +127,7 @@ class MainApp(ctk.CTkFrame):
                 pass
                 # Todo - ask file from server
 
-        elif action == "TKN_BACK":  # server sends to listening client
-            token = fields[0]
-            start_time = fields[1]
-            token_lock.acquire()
-            token_dict[token] = start_time
-            print(token_dict)
-            token_lock.release()
+
         elif action == 'LGO_BACK':
             self.master.switch_frame(LoginOrSignUp)
         elif action == "RUL_BACK":
@@ -145,11 +141,12 @@ class MainApp(ctk.CTkFrame):
         title_label.pack(pady=10)
         self.search_entry = ctk.CTkEntry(self, font=('Arial', 12))
         self.search_entry.pack(pady=5)
+
         search_button = ctk.CTkButton(self, text='search', command=self.search)
         search_button.pack(pady=10)
-        """logout_button = ctk.CTkButton(self,text ='Logout', command=self.logout)
-        logout_button.place(relx=1, rely=0.1, anchor='ne')"""
 
+        my_dir_button = ctk.CTkButton(self, text='My Directory', command=self.show_directory())
+        my_dir_button.pack(pady=10)
 
         while True:
             data = self.manu()
@@ -163,6 +160,13 @@ class MainApp(ctk.CTkFrame):
         exit_all = True
         self.udp_srv.join()
         self.token_srv.join()
+
+    def show_directory(self):
+        if len([f for f in os.listdir(CLI_PATH) if os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.mp3')])>len(local_files):
+            self.files_frame = LocalFilesFrame(self)
+        if self.files_frame is not None:
+            self.files_frame.destroy()
+        self.directory = ShowDir(self)
 
     def search(self):
         keyword = self.search_entry.get()
@@ -209,6 +213,49 @@ class MainApp(ctk.CTkFrame):
         else:
             return "RULIVE"
 
+
+class ShowDir(ctk.CTkFrame):
+    def __init__(self, master):
+        self.master = master
+        ctk.CTkFrame.__init__(self, master)
+        self.place(anchor='center', relx=0.5, rely=0.8, relheight=0.95, relwidth=0.95)
+        title_label = ctk.CTkLabel(self, text='My Library', font=('Arial', 18))
+        title_label.pack(pady=10)
+
+        # Create a table to display the song information
+        table_frame = ctk.CTkFrame(self)
+        table_frame.pack(pady=10)
+
+        # Create the headers for the table
+        headers = ['File Name', 'Song', 'Artist', 'Genre', 'Play']
+        for i, header in enumerate(headers):
+            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
+            header_label.grid(row=0, column=i, sticky='w')
+
+        i = 1
+        for file_name, song in local_files:
+            file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=('Arial', 14), padx=10, pady=5)
+            file_name.grid(row=i + 1, column=0, sticky='w')
+
+            song_label = ctk.CTkLabel(table_frame, text=song.song_name, font=('Arial', 14), padx=10, pady=5)
+            song_label.grid(row=i + 1, column=1, sticky='w')
+
+            artist_label = ctk.CTkLabel(table_frame, text=song.artist, font=('Arial', 14), padx=10, pady=5)
+            artist_label.grid(row=i + 1, column=2, sticky='w')
+
+            genre_label = ctk.CTkLabel(table_frame, text=song.genre, font=('Arial', 14), padx=10, pady=5)
+            genre_label.grid(row=i + 1, column=3, sticky='w')
+
+            play_button = ctk.CTkButton(table_frame, command=lambda f=file_name: self.play_song(file_name),text='Play')
+            play_button.grid(row=i + 1, column=7, sticky='w')
+            i += 1
+
+    def play_song(self,file_name):
+        try:
+            playsound.playsound(file_name)
+        except Exception as e:
+            print(e)
+
 class LocalFilesFrame(ctk.CTkFrame):
     def __init__(self, master):
         self.files_list = [f for f in os.listdir(CLI_PATH) if os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.mp3')]
@@ -254,9 +301,6 @@ class LocalFilesFrame(ctk.CTkFrame):
             save_button = ctk.CTkButton(table_frame, text='Save', font=('Arial', 12), command=lambda f=file_name, sn=song_name_entry, a=artist_entry, g=genre_entry: self.save_song_info(f, sn.get(), a.get(), g.get()))
             save_button.grid(row=i+1, column=4, padx=10)
 
-
-
-
     def save_song_info(self,file_name, song_name, artist, genre):
         global local_files, SAVED_FILES
         local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
@@ -266,6 +310,7 @@ class LocalFilesFrame(ctk.CTkFrame):
         if len(local_files)==len(self.files_list):
             SAVED_FILES= True
             self.master.switch_frame(MainApp)
+
 
 
 class SearchResult(ctk.CTkFrame):
@@ -281,7 +326,13 @@ class SearchResult(ctk.CTkFrame):
         table_frame.pack(pady=10)
 
         # Create the headers for the table
-        headers = ['File Name','Song', 'Artist', 'Genre', 'Size', 'Username', 'Available','Download']
+        if len(fields)==0:
+            empty_label = ctk.CTkLabel(table_frame, text=f"No search results")
+            empty_label.pack(pady=10)
+            return
+
+
+        headers = ['File Name', 'Song', 'Artist', 'Genre', 'Size', 'Username', 'Available','Download']
         for i, header in enumerate(headers):
             header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
@@ -290,38 +341,33 @@ class SearchResult(ctk.CTkFrame):
         i=1
         for f in fields:
             info = f.split("~")
-            if len(info) > 1:
-                file_name = ctk.CTkLabel(table_frame, text=info[0], font=('Arial', 14), padx=10, pady=5)
-                file_name.grid(row=i + 1, column=0, sticky='w')
+            file_name = ctk.CTkLabel(table_frame, text=info[0], font=('Arial', 14), padx=10, pady=5)
+            file_name.grid(row=i + 1, column=0, sticky='w')
 
-                song_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 14), padx=10, pady=5)
-                song_label.grid(row=i + 1, column=1, sticky='w')
+            song_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 14), padx=10, pady=5)
+            song_label.grid(row=i + 1, column=1, sticky='w')
 
-                artist_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 14), padx=10,pady=5)
-                artist_label.grid(row=i + 1, column=2, sticky='w')
+            artist_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 14), padx=10,pady=5)
+            artist_label.grid(row=i + 1, column=2, sticky='w')
 
-                genre_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 14), padx=10, pady=5)
-                genre_label.grid(row=i + 1, column=3, sticky='w')
+            genre_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 14), padx=10, pady=5)
+            genre_label.grid(row=i + 1, column=3, sticky='w')
 
-                size_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 14), padx=10,pady=5)
-                size_label.grid(row=i + 1, column=4, sticky='w')
+            size_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 14), padx=10,pady=5)
+            size_label.grid(row=i + 1, column=4, sticky='w')
 
-                username_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 14),padx=10, pady=5)
-                username_label.grid(row=i + 1, column=5, sticky='w')
+            username_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 14),padx=10, pady=5)
+            username_label.grid(row=i + 1, column=5, sticky='w')
 
-                available_label = ctk.CTkLabel(table_frame, text=info[6], font=('Arial', 14),padx=10, pady=5)
-                available_label.grid(row=i + 1, column=6, sticky='w')
-                if info[6] == 'True':
-                    print('download is available')
-                    download_button = ctk.CTkButton(table_frame, command=lambda f=info[0]: self.master.get_file(f) ,text='Download!')
-                else:
-                    download_button = ctk.CTkButton(table_frame , text='Unavailable')
-                download_button.grid(row=i + 1, column=7, sticky='w')
-
-
+            available_label = ctk.CTkLabel(table_frame, text=info[6], font=('Arial', 14),padx=10, pady=5)
+            available_label.grid(row=i + 1, column=6, sticky='w')
+            if info[6] == 'True':
+                print('download is available')
+                download_button = ctk.CTkButton(table_frame, command=lambda f=info[0]: self.master.get_file(f) ,text='Download!')
             else:
-                empty_label = ctk.CTkLabel(table_frame,text=f"No search results")
-                empty_label.pack(pady=10)
+                download_button = ctk.CTkButton(table_frame , text='Unavailable')
+            download_button.grid(row=i + 1, column=7, sticky='w')
+
             i+=1
 
 
@@ -392,8 +438,6 @@ class Signup(ctk.CTkFrame):
             self.master.switch_frame(LocalFilesFrame)
 
 
-
-
 class Login(ctk.CTkFrame):
     def __init__(self, master):
         ctk.CTkFrame.__init__(self, master)
@@ -452,95 +496,11 @@ class Login(ctk.CTkFrame):
 
 
 
-def login(cli_s):
-    logged = False
-    signed = True
-    username = ''
-    sign_or_log = input("do you have an account or do you want to sign in? enter 1 to login and 2 to sign up>")
-    if sign_or_log == '2':
-        signed = False
-        while not signed:
-            username = input('please enter you new username> ')
-            password = input('please enter your new password> ')
-            confirm_pass = input('please rewrite your password> ')
-            if password == confirm_pass:
-                to_send = f'SGN|{username}|{password}'
-                send_with_size(cli_s, to_send)
-                result = recv_by_size(cli_s)
-                if result[-4:] == 'sign':
-                    signed = True
-                elif result[-4:] == 'exst':
-                    print('username already exists or is currently logged, please try a different user')
-            else:
-                print(' please re-enter your credentials')
-
-    while not logged and signed:
-        username = input("please enter your username> ")
-        password = input("please enter your password> ")
-        # Send username and password to server
-        to_send = f"LOG|{username}|{password}"
-        send_with_size(cli_s, to_send)
-
-        # Receive authentication result from server
-        auth_result = recv_by_size(cli_s)
-        if auth_result[-2:] == 'OK':
-            logged = True
-        if auth_result == "EXT":
-            break
-    return logged, username
-
-
 def udp_log(side, message):
     with open("udp_" + side + "_log.txt", 'a') as log:
         log.write(str(datetime.datetime.now())[:19] + " - " + message + "\n")
         if LOG_ALL:
             print(message)
-
-
-def manu(username, local_files):
-    print("\n=============\n" +
-          "1. SCH - show server file list\n" +
-          "2. SHR - share my files \n" +
-          "3. LNK - get file link \n" +
-          "4. PLY - play mp3 file\n\n"
-          "9. exit\n>" +
-          "=============\n\n")
-
-    data = input("Select number > ")
-
-    if data == "9":
-        return "q"
-    elif data == "1":
-        keyword = input("search for:")
-        return "SCH|" + keyword
-
-    elif data == "2":
-        to_send = "SHR|" + str(len(local_files))
-        for file, song in local_files.items():
-            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{username}~{song.size}"
-        return to_send
-    elif data == "3":
-        fn = input("enter file name>")
-        return "LNK|" + fn
-    elif data == "4":
-        sn = input("enter song file name>")
-        # play_song(cli_path, sn)
-        return "RULIVE"
-
-    else:
-        return "RULIVE"
-
-
-def load_local_files(cli_path, username):
-    d = {}
-    for f in os.listdir(cli_path):
-        full_name = os.path.join(cli_path, f)
-        if DEBUG:
-            print("f " + full_name + " " + str(os.path.isfile(full_name)))
-        if os.path.isfile(full_name) and f.endswith(".mp3"):
-            d[f] = Song(f, input(f'{f} name: '), input(f'{f} artist: '), input(f'{f} genre: '), username,
-                        size=os.path.getsize(full_name))
-    return d
 
 
 def check_valid_token(token):
@@ -817,6 +777,8 @@ def udp_client(cli_path, ip, fn, size, token):
             udp_log('client', "Send failed or size = 0")
     udp_sock.close()
 
+def add_file(file_name):
+    global local_files
 
 def data_recv(data, cli_path):
     global token_dict
@@ -828,35 +790,12 @@ def data_recv(data, cli_path):
             print('logged!')
         else:
             print('not logged')
-    elif action == "SCH_BACK":
-        print("\n File List")
-        for f in fields:
-            info = f.split("~")
-            if len(info) > 1:
-                print("\t{} {} {} {} {}\n".format(info[0], info[1], info[2], info[3], info[4]), end=' ')
-            else:
-                print("\tserver's directory is empty\n")
 
     elif action == "SHR_BACK":
         print("Share status: " + data)
 
     elif action == "UPD_BACK":
         print("Got " + data)
-
-    elif action == "LNK_BACK":
-        fname = fields[0]
-        fip = fields[1]
-        fsize = int(fields[2])
-        ftoken = fields[3]
-        if fip != "0.0.0.0":
-            print('got to udp client')
-            udp_cli = threading.Thread(target=udp_client, args=(cli_path, fip, fname, fsize, ftoken))
-            udp_cli.start()
-            print("Run udp client to download the file " + fname + " from " + fip)
-            udp_cli.join()
-        else:
-            pass
-            # Todo - ask file from server
 
     elif action == "TKN_BACK":  # server sends to listening client
         token = fields[0]
@@ -885,46 +824,6 @@ def main(cli_path, server_ip):
     cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
 
     exit_all = False
-
-    logged, username = login(cli_s)
-    if not logged:
-        return
-
-    local_files = load_local_files(cli_path, username)
-    udp_srv = threading.Thread(target=udp_server, args=(cli_path, local_files, exit_all))
-    udp_srv.start()
-    time.sleep(0.3)
-    token_srv = threading.Thread(target=token_server, args=(cli_s, cli_path, exit_all))
-    token_srv.start()
-    time.sleep(0.3)
-    while True:
-        data = manu(username, local_files)
-
-        if data == "q":
-            break
-
-        send_with_size(cli_s, data)
-
-    cli_s.close()
-    exit_all = True
-    udp_srv.join()
-    token_srv.join()
-    print("Main Client -  Bye Bye")
-
-
-def main_test(cli_path, server_ip):
-    print("before connect ip = " + server_ip)
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # connect to the server
-    client_socket.connect((server_ip, TCP_PORT))
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    context.load_verify_locations(r'cert\cert.pem')
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
-    # create a socket and connect to the server
-    cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
-
-    exit_all = False
     username = ''
     app = App(cli_s,cli_path)
     app.mainloop()
@@ -932,9 +831,7 @@ def main_test(cli_path, server_ip):
 
 if __name__ == "__main__":
     if len(argv) > 2:
-        # main(argv[1], argv[2])
-        sys.path.append(r"E:\finalProject\venv\Lib\site-packages\customtkinter")
-        main_test(argv[1], argv[2])
+        main(argv[1], argv[2])
 
     else:
         print("USAGE : <enter client folder> <server_ip>")
