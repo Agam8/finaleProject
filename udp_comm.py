@@ -11,7 +11,6 @@ UDP_PORT = 5555
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
 TEST = True
-token_dict = {}
 token_lock = threading.Lock()
 
 class udp():
@@ -22,8 +21,9 @@ class udp():
         token_lock.acquire()
         self.token_dict[token] = start_time
         token_lock.release()
+
     def get_token_dict(self):
-        return token_dict
+        return self.token_dict
 
     def udp_log(self,side, message):
         with open("udp_" + side + "_log.txt", 'a') as log:
@@ -33,14 +33,13 @@ class udp():
 
 
     def check_valid_token(self,token):
-        global token_dict
         print('got to check token')
-        if token in token_dict.keys():
+        if token in self.token_dict.keys():
             time_difference = (
-                        datetime.datetime.now() - datetime.datetime.strptime(token_dict[token], DATETIME_FORMAT)).seconds
+                        datetime.datetime.now() - datetime.datetime.strptime(self.token_dict[token], DATETIME_FORMAT)).seconds
             if time_difference < 7200:  # 2 hours
                 token_lock.acquire()
-                del token_dict[token]
+                del self.token_dict[token]
                 token_lock.release()
                 return True
         return False
@@ -305,33 +304,3 @@ class udp():
             if DEBUG:
                 self.udp_log('client', "Send failed or size = 0")
         udp_sock.close()
-
-    def data_recv(self,data, cli_path):
-        global token_dict
-
-        action = data[:8]
-        fields = data[9:].split("|")
-        if action == 'LOG_BACK':
-            if fields[0] == 'OK':
-                print('logged!')
-            else:
-                print('not logged')
-
-        elif action == "SHR_BACK":
-            print("Share status: " + data)
-
-        elif action == "UPD_BACK":
-            print("Got " + data)
-
-        elif action == "TKN_BACK":  # server sends to listening client
-            token = fields[0]
-            start_time = fields[1]
-            token_lock.acquire()
-            token_dict[token] = start_time
-            print(token_dict)
-            token_lock.release()
-
-        elif action == "RUL_BACK":
-            print("Server answer and Live")
-        else:
-            print("Unknown action back " + action)
