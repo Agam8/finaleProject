@@ -9,7 +9,7 @@ import secrets
 import string
 import sqlCommands
 from token_config import Token
-TCP_PORT=7777
+TCP_PORT=8888
 DEBUG = True
 exit_all = False
 songs_database = sqlCommands.SongsORM('server_database.db')
@@ -41,7 +41,7 @@ def login(client_socket,cli_ip):
             logged = True
             username = data.split('|')[1]
         elif tries == 0:
-            to_send = "EXT"
+            to_send = "GOODBY"
         send_with_size(client_socket, to_send)
         tries -= 1
 
@@ -115,32 +115,29 @@ def do_action(data, cli_ip):
 
     try:
 
-        action = data[:3]
-        data = data[4:]
+        action = data[:6]
+        data = data[7:]
         fields = data.split('|')
 
         if DEBUG:
             print("Got client request " + action + " -- " + str(fields))
-        answer = action + "_BACK"
 
-        if action == "LOG":
+        if action == "LOGINC":
             username = fields[0]
             password = fields[1]
             verify = users_database.login(username,password,cli_ip)
             if verify:
-                to_send = answer + "|"+"OK"
+                to_send = 'LOGGED' + "|"+"OK"
             else:
-                to_send = answer+ "|"+"NO"
-        elif action == "SGN":
+                to_send = 'LOGGED'+ "|"+"NO"
+        elif action == "SIGNUP":
             username = fields[0]
             password = fields[1]
             valid, msg = users_database.signup(username,password,cli_ip)
-            to_send = answer + "|"+msg
-        elif action == 'LGO':
-            users_database.logout(fields[0])
-            to_send = answer
-        elif action == "SCH":
+            to_send = 'SIGNED' + "|"+msg
+        elif action == "SEARCH":
             print(fields[0])
+            answer = 'SRCHBK'
             songs = songs_database.search_songs(fields[0])
             if len(songs) == 0:
                 answer += ''
@@ -152,34 +149,35 @@ def do_action(data, cli_ip):
                     # print('current answer:', answer)
             to_send = answer
 
-        elif action == "SHR":
+        elif action == "SHAREF":
             files_lock.acquire()
             songs_database.add_client_folder(fields, cli_ip)
             files_lock.release()
-            to_send = answer + "|OK"
-        elif action == "LNK":
+            to_send = "SHARBK" + "|OK"
+        elif action == "LINKFN":
             fn = fields[0]
             exists = songs_database.song_exists(fn)
             # print('THIS SONG EXISTS', exists)
             if exists:
                 song = songs_database.get_song_by_file(fn)[0]
+
                 token_obj = create_token()
                 token_lock.acquire()
                 current_tokens[song.ip] = token_obj
                 token_lock.release()
-                to_send = f'{answer}|{fn}|{song.ip}|{song.size}|{token_obj.token}' # file name, ip, size
+                to_send = f'LINKBK|{fn}|{song.ip}|{song.size}|{token_obj.token}' # file name, ip, size
             else:
                 to_send = "Err___R|File not exist in srv list"
 
-        elif action == 'TKN':
+        elif action == 'SENDTK':
             token = current_tokens[cli_ip]
             token_lock.acquire()
             del current_tokens[cli_ip]
             token_lock.release()
-            to_send = f'{answer}|{token.token}|{token.start_time}'
+            to_send = f'SENDTK|{token.token}|{token.start_time}'
 
-        elif action == "RUL":
-            to_send = answer + "|Server Is Live"
+        elif action == "RULIVE":
+            to_send = 'AMLIVE' + "|Server Is Live"
         else:
             print("Got unknown action from client " + action)
             to_send = "ERR___R|001|" + "unknown action"

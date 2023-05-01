@@ -104,7 +104,7 @@ class UserORM():
                 self.cursor.execute("UPDATE users SET current_ip=?, is_logged=? WHERE username=?",
                                     (ip, 1, username))
                 self.cursor.execute("UPDATE songs SET ip=? WHERE committed_user=?",
-                                    (ip, user.id))
+                                    (ip, username))
                 self.commit()
                 self.close_DB()
                 return True

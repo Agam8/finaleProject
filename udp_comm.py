@@ -6,7 +6,7 @@ import time
 import hashlib
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 LOG_ALL = True
-DEBUG= True
+DEBUG= False
 UDP_PORT = 5555
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
@@ -224,7 +224,6 @@ class udp():
                     done = True
 
                 if DEBUG and LOG_ALL:
-                    pass
                     self.udp_log("client", "Just got part %d file with %d bytes pos = %d header %s " % (
                         pack_cnt, len(bin_data), file_pos, header))
 
