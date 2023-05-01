@@ -11,16 +11,16 @@ UDP_PORT = 5555
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
 TEST = True
-token_lock = threading.Lock()
 
 class udp():
     def __init__(self):
         self.token_dict = {}
+        self.token_lock = threading.Lock()
 
     def set_token_dict(self,token,start_time):
-        token_lock.acquire()
+        self.token_lock.acquire()
         self.token_dict[token] = start_time
-        token_lock.release()
+        self.token_lock.release()
 
     def get_token_dict(self):
         return self.token_dict
@@ -33,14 +33,14 @@ class udp():
 
 
     def check_valid_token(self,token):
-        print('got to check token')
+        print('got to check token- current tokens: ',self.token_dict)
         if token in self.token_dict.keys():
             time_difference = (
                         datetime.datetime.now() - datetime.datetime.strptime(self.token_dict[token], DATETIME_FORMAT)).seconds
             if time_difference < 7200:  # 2 hours
-                token_lock.acquire()
+                self.token_lock.acquire()
                 del self.token_dict[token]
-                token_lock.release()
+                self.token_lock.release()
                 return True
         return False
 
@@ -71,6 +71,7 @@ class udp():
                     continue
                 if DEBUG:
                     self.udp_log("server", " Got UDP Request " + data)
+
                 if data[:3] == "FRQ":
                     # print('got request')
                     fields = data[4:].split("|")
@@ -282,7 +283,6 @@ class udp():
 
         to_send = "FRQ|" + fn + "|" + str(size) + "|" + token
         try:
-
             udp_sock.sendto(to_send.encode(), addr)
             send_ok = True
             if DEBUG:
@@ -297,7 +297,6 @@ class udp():
                 self.udp_log("client", "Send faliled general socket error  " + e.message)
 
         if send_ok and size > 0:
-
             self.udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
 
         else:
