@@ -51,8 +51,11 @@ else:
         print(username)
         answer += f"|{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
 
-""""""
+"""
 from sqlCommands import Song
-local_files= {Song('fn','sn','a','rock','agam8'), Song('hello.mp3','hello','adele','r&b','Agam8')}
-for i, song in enumerate(local_files):
-    print(i, song.file_name, song.song_name,song.artist,song.genre,song.committed_user)"""
+local_files= {'filename1':Song('fn','sn','a','rock','agam8'), 'filename2':Song('hello.mp3','hello','adele','r&b','Agam8')}
+i=0
+for song in local_files.values():
+    print(song)
+    print(i, song.file_name, song.song_name,song.artist,song.genre,song.committed_user)
+    i+=1

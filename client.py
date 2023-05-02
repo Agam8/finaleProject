@@ -233,8 +233,8 @@ class ShowDir(ctk.CTkFrame):
         for i, header in enumerate(headers):
             header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
-
-        for i, song in enumerate(local_files):
+        i=0
+        for song in local_files.values():
             file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=('Arial', 14), padx=10, pady=5)
             file_name.grid(row=i + 1, column=0, sticky='w')
 
@@ -312,15 +312,27 @@ class LocalFilesFrame(ctk.CTkFrame):
                                                                                           g.get()))
             save_button.grid(row=i + 1, column=4, padx=10)
 
+        continue_button = ctk.CTkButton(self, text='Continue', font=('Arial', 12), command=self.continue_to_main)
+        continue_button.place(relx=0.5,rely=0.8)
     def save_song_info(self, file_name, song_name, artist, genre):
         global local_files, SAVED_FILES
-        local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
-                                      size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
-        saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=('Arial', 12), padx=10, pady=5)
-        saved_label.pack(pady=10)
+        if file_name not in local_files.keys():
+            local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
+                                          size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
+            saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=('Arial', 12), padx=10, pady=5)
+            saved_label.pack(pady=10)
+        else:
+            not_saved_label = ctk.CTkLabel(self, text=f"{file_name} already saved", font=('Arial', 12), padx=10, pady=5)
+            not_saved_label.pack(pady=10)
+
+
+    def continue_to_main(self):
         if len(local_files) == len(self.files_list):
             SAVED_FILES = True
             self.master.switch_frame(MainApp)
+        else:
+            no_cont_label = ctk.CTkLabel(self, text="Please save all files before continue", font=('Arial', 12), padx=10, pady=5)
+            no_cont_label.place(relx=0.5,rely=0.9)
 
 
 class SearchResult(ctk.CTkFrame):
