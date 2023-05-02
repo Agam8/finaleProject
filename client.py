@@ -18,7 +18,6 @@ from udp_comm import udp
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
-TEST = True
 token_dict = {}
 token_lock = threading.Lock()
 UDP_PORT = 5555
@@ -515,6 +514,7 @@ def udp_log(side, message):
 def check_valid_token(token):
     global token_dict
     print('got to check token')
+    time.sleep(0.3)
     if token in token_dict.keys():
         time_difference = (
                     datetime.datetime.now() - datetime.datetime.strptime(token_dict[token], DATETIME_FORMAT)).seconds
@@ -563,11 +563,7 @@ def udp_server(cli_path, local_files, exit_all):
                     if fn in local_files.keys():
                         if local_files[fn].size == fsize and fsize > 0:
                             fullname = os.path.join(cli_path, fn)
-
-                            if TEST:
-                                udp_file_send_test(udp_sock, fullname, fsize, addr)
-                            else:
-                                udp_file_send(udp_sock, fullname, fsize, addr)
+                            udp_file_send(udp_sock, fullname, fsize, addr)
                             time.sleep(5)
                         else:
                             udp_log("server", "sizes not ok")
@@ -588,47 +584,6 @@ def udp_server(cli_path, local_files, exit_all):
             break
     udp_sock.close()
     udp_log("server", "udp server off")
-
-
-def udp_file_send_test(udp_sock, fullname, fsize, addr):
-    pos = 0
-    done = False
-    pack_cnt = 1
-    keep = {}
-    with open(fullname, 'rb') as f_data:
-        while not done:
-            bin_data = f_data.read(FILE_PACK_SIZE)
-            if len(bin_data) == 0:
-                udp_log("server", "Seems empty file in disk" + fullname)
-                break
-            pos += len(bin_data)
-            if pos >= fsize:
-                done = True
-            m = hashlib.md5()
-            m.update(bin_data)
-            checksum = m.hexdigest()
-            header = (str(len(bin_data)).zfill(9) + "," + str(pack_cnt).zfill(8) + "," + checksum).encode()
-            bin_data = header + bin_data
-            keep[pack_cnt] = bin_data
-            pack_cnt += 1
-
-    try:
-        for k, v in keep.items():
-            if k != 2 and k != 3:
-                udp_sock.sendto(v, addr)
-                if DEBUG and LOG_ALL:
-                    pass
-                    udp_log("server", "TEST - Just sent part %d file with %d bytes header %s " % (k, len(v), v[:18]))
-        udp_sock.sendto(keep[3], addr)
-        udp_sock.sendto(keep[2], addr)
-
-        if DEBUG:
-            udp_log("server", "TEST - Just sent also 8 5 and 4 ")
-    except socket.error as e:
-        udp_log("server", "Sock send error: addr = " + addr[0] + ":" + str(addr[1]) + " " + str(e.errno))
-
-    if DEBUG:
-        udp_log("server", "End of send udp file")
 
 
 def udp_file_send(udp_sock, fullname, fsize, addr):
@@ -725,7 +680,7 @@ def udp_file_recv(udp_sock, fullname, size, addr):
                         all_ok = True
 
     except socket.error as e:
-        udp_log("client", "Failed to recv: " + str(e.errno))
+        udp_log("client", "Failed to recv: " + str(e.errno) + str(e))
         return False
 
     if all_ok:
@@ -752,7 +707,6 @@ def try_to_move_old_packs_to_file(f_data, last, max, keep):
         del keep[i]
 
     return last
-
 
 def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre):
     """

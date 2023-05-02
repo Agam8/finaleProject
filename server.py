@@ -18,6 +18,7 @@ files_lock = threading.Lock()
 current_tokens = {}
 token_lock = threading.Lock()
 DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
+SERVER_IP = '10.0.0.26' #for testing
 
 def create_token():
     secure_str = ''.join((secrets.choice(string.ascii_letters + string.digits) for i in range(16)))
@@ -163,7 +164,10 @@ def do_action(data, cli_ip):
 
                 token_obj = create_token()
                 token_lock.acquire()
-                current_tokens[song.ip] = token_obj
+                if song.ip == SERVER_IP:
+                    current_tokens['127.0.0.1'] = token_obj
+                else:
+                    current_tokens[song.ip] = token_obj
                 token_lock.release()
                 to_send = f'LINKBK|{fn}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|{song.artist}|{song.genre}' # file name, ip, size
             else:
