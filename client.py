@@ -18,7 +18,7 @@ from udp_comm import udp
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
-TEST = False
+TEST = True
 token_dict = {}
 token_lock = threading.Lock()
 UDP_PORT = 5555
@@ -114,15 +114,17 @@ class MainApp(ctk.CTkFrame):
             print("Got " + data)
 
         elif action == "LINKBK":
-
             fname = fields[0]
             fip = fields[1]
             fsize = int(fields[2])
             ftoken = fields[3]
+            song_name = fields[4]
+            artist = fields[5]
+            genre = fields[6]
             if fip != "0.0.0.0":
                 print('got to udp client')
                 time.sleep(0.5)
-                udp_cli = threading.Thread(target=udp_client, args=(CLI_PATH, fip, fname, fsize, ftoken))
+                udp_cli = threading.Thread(target=udp_client, args=(CLI_PATH, fip, fname, fsize, ftoken,song_name,artist,genre))
                 udp_cli.start()
                 print("Run udp client to download the file " + fname + " from " + fip)
                 udp_cli.join()
@@ -154,7 +156,7 @@ class MainApp(ctk.CTkFrame):
         search_button = ctk.CTkButton(self, text='search', command=self.search)
         search_button.pack(pady=10)
 
-        my_dir_button = ctk.CTkButton(self, text='My Directory', command=self.show_directory())
+        my_dir_button = ctk.CTkButton(self, text='My Directory', command=self.show_directory)
         my_dir_button.pack(pady=10)
 
         while True:
@@ -171,9 +173,6 @@ class MainApp(ctk.CTkFrame):
         self.recv_thread.join()
 
     def show_directory(self):
-        if len([f for f in os.listdir(CLI_PATH) if
-                os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.mp3')]) > len(local_files):
-            self.files_frame = LocalFilesFrame(self)
         if self.files_frame is not None:
             self.files_frame.destroy()
         self.directory = ShowDir(self)
@@ -508,23 +507,6 @@ class Login(ctk.CTkFrame):
             self.master.switch_frame(LocalFilesFrame)
 
 
-def main(cli_path, server_ip):
-    print("before connect ip = " + server_ip)
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # connect to the server
-    client_socket.connect((server_ip, TCP_PORT))
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    context.load_verify_locations(r'cert\cert.pem')
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
-    # create a socket and connect to the server
-    cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
-
-    exit_all = False
-    username = ''
-    app = App(cli_s, cli_path)
-    app.mainloop()
-
 def udp_log(side, message):
     with open("udp_" + side + "_log.txt", 'a') as log:
         log.write(str(datetime.datetime.now())[:19] + " - " + message + "\n")
@@ -744,11 +726,14 @@ def udp_file_recv(udp_sock, fullname, size, addr):
 
     except socket.error as e:
         udp_log("client", "Failed to recv: " + str(e.errno))
+        return False
 
     if all_ok:
         udp_log("client", "UDP Download  Done " + fullname + " len=" + str(size))
+        return True
     else:
         udp_log("client", "Something went wrong. cant download " + fullname)
+        return False
 
 
 def try_to_move_old_packs_to_file(f_data, last, max, keep):
@@ -769,11 +754,12 @@ def try_to_move_old_packs_to_file(f_data, last, max, keep):
     return last
 
 
-def udp_client(cli_path, ip, fn, size, token):
+def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre):
     """
     will send file request and then will recv Binary data
     """
     # print("got to func")
+    global local_files
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     addr = (ip, UDP_PORT)
     udp_sock.settimeout(10)
@@ -796,13 +782,28 @@ def udp_client(cli_path, ip, fn, size, token):
             udp_log("client", "Send faliled general socket error  " + e.message)
 
     if send_ok and size > 0:
-
-        udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
+        saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
+        if saved:
+            local_files[fn] = Song(fn, song_name, artist, genre, USERNAME, size=size)
 
     else:
         if DEBUG:
             udp_log('client', "Send failed or size = 0")
     udp_sock.close()
+
+def main(cli_path, server_ip):
+    print("before connect ip = " + server_ip)
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # connect to the server
+    client_socket.connect((server_ip, TCP_PORT))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.load_verify_locations(r'cert\cert.pem')
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    # create a socket and connect to the server
+    cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
+    app = App(cli_s, cli_path)
+    app.mainloop()
 
 if __name__ == "__main__":
     if len(argv) > 2:

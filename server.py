@@ -54,7 +54,7 @@ def handle_token(cli_ip,sock):
             print("Seems Server DC")
             break
         if cli_ip in current_tokens.keys():
-            data = "TKN"
+            data = "SENDTK"
             to_send = do_action(data, cli_ip)
             send_with_size(sock, to_send)
 
@@ -165,7 +165,7 @@ def do_action(data, cli_ip):
                 token_lock.acquire()
                 current_tokens[song.ip] = token_obj
                 token_lock.release()
-                to_send = f'LINKBK|{fn}|{song.ip}|{song.size}|{token_obj.token}' # file name, ip, size
+                to_send = f'LINKBK|{fn}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|{song.artist}|{song.genre}' # file name, ip, size
             else:
                 to_send = "Err___R|File not exist in srv list"
 
