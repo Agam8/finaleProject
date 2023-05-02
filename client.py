@@ -106,7 +106,7 @@ class MainApp(ctk.CTkFrame):
                 self.search_results.destroy()
             self.search_results = SearchResult(self, fields)
 
-        elif action == "SHAREF":
+        elif action == "SHARBK":
             print("Share status: " + data)
 
         elif action == "UPD_BACK":
@@ -147,6 +147,7 @@ class MainApp(ctk.CTkFrame):
 
     def loop(self):
         global exit_all
+        self.share_files()
         title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=('Arial', 18), text_color='#6DC868')
         title_label.pack(pady=10)
         self.search_entry = ctk.CTkEntry(self, font=('Arial', 12))
@@ -184,7 +185,11 @@ class MainApp(ctk.CTkFrame):
     def get_file(self, file_name):
         to_send = "LINKFN|" + file_name
         send_with_size(self.cli_s, to_send)
-
+    def share_files(self):
+        to_send = "SHAREF|" + str(len(local_files))
+        for file, song in local_files.items():
+            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
+        send_with_size(self.cli_s,to_send)
     def manu(self):
         print("\n=============\n" +
               "1. SCH - show server file list\n" +
