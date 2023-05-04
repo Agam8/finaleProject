@@ -122,9 +122,9 @@ class UserORM():
                         """, (username, secure_pass, cli_ip, 1))
             self.commit()
             self.close_DB()
-            return True, 'sign'
+            return True, 'OK'
         else:
-            return False, 'exst'
+            return False, 'NO'
 
     def logout(self, username):
         user = self.get_user_by_username(username)
@@ -276,20 +276,6 @@ class SongsORM():
         self.close_DB()
         return [Song(*row) for row in rows]
 
-    def get_songs_by_artist(self, artist):
-        self.open_DB()
-        self.cursor.execute("SELECT * FROM songs WHERE artist LIKE '?';", ('%' + artist + '%',))
-        rows = self.cursor.fetchall()
-        self.close_DB()
-        return [Song(*row) for row in rows]
-
-    def get_songs_by_genre(self, genre):
-        self.open_DB()
-        self.cursor.execute("SELECT * FROM songs WHERE genre LIKE '?';", ('%' + genre + '%',))
-        rows = self.cursor.fetchall()
-        self.close_DB()
-        return [Song(*row) for row in rows]
-
     def song_exists(self, file_name):
         self.open_DB()
         sql = "SELECT * " \
@@ -369,6 +355,7 @@ class SongsORM():
             songs.append(song)
         self.close_DB()
         return songs
+
     def get_user_by_song(self,file_name):
         self.open_DB()
         user = ''

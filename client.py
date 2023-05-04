@@ -12,15 +12,13 @@ from sqlCommands import Song
 import customtkinter as ctk
 import tkinter as tk
 import playsound
-from udp_comm import udp
-
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
 token_dict = {}
 token_lock = threading.Lock()
-UDP_PORT = 5555
+UDP_PORT = 7777
 TCP_PORT = 8888
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
@@ -38,7 +36,7 @@ class App(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme('green')
         ctk.CTk.__init__(self)
-        self.geometry('1000x1000')
+        self.geometry('900x900')
         self._frame = None
         self.cli_s = cli_s
         self.username = ''
@@ -71,15 +69,14 @@ class MainApp(ctk.CTkFrame):
         self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, local_files, exit_all))
         self.udp_srv.start()
         time.sleep(0.3)
-        self.recv_thread = threading.Thread(target=self.recv_func)
+        self.recv_thread = threading.Thread(target=self.recv_thread_func)
         self.recv_thread.start()
         time.sleep(0.3)
         self.search_results = None
         self.files_frame = None
-
         self.loop()
 
-    def recv_func(self):
+    def recv_thread_func(self):
         while True:
             data = recv_by_size(self.cli_s)
             if data == "" or exit_all:
@@ -106,8 +103,8 @@ class MainApp(ctk.CTkFrame):
                 self.search_results.destroy()
             self.search_results = SearchResult(self, fields)
 
-        elif action == "SHARBK":
-            print("Share status: " + data)
+        elif action == "UPLDBK":
+            print("Share status: " + fields[0])
 
         elif action == "UPD_BACK":
             print("Got " + data)
@@ -120,16 +117,13 @@ class MainApp(ctk.CTkFrame):
             song_name = fields[4]
             artist = fields[5]
             genre = fields[6]
-            if fip != "0.0.0.0":
-                print('got to udp client')
-                time.sleep(0.5)
-                udp_cli = threading.Thread(target=udp_client, args=(CLI_PATH, fip, fname, fsize, ftoken,song_name,artist,genre))
-                udp_cli.start()
-                print("Run udp client to download the file " + fname + " from " + fip)
-                udp_cli.join()
-            else:
-                pass
-                # Todo - ask file from server
+
+            time.sleep(0.5)
+            udp_cli = threading.Thread(target=udp_client,
+                                       args=(CLI_PATH, fip, fname, fsize, ftoken, song_name, artist, genre))
+            udp_cli.start()
+            # print("Run udp client to download the file " + fname + " from " + fip)
+            udp_cli.join()
 
         elif action == "SENDTK":  # server sends to listening client
             token = fields[0]
@@ -156,7 +150,7 @@ class MainApp(ctk.CTkFrame):
         search_button = ctk.CTkButton(self, text='search', command=self.search)
         search_button.pack(pady=10)
 
-        my_dir_button = ctk.CTkButton(self, text='My Directory', command=self.show_directory)
+        my_dir_button = ctk.CTkButton(self, text='My Directory', command=self.show_library)
         my_dir_button.pack(pady=10)
 
         while True:
@@ -172,10 +166,10 @@ class MainApp(ctk.CTkFrame):
         self.udp_srv.join()
         self.recv_thread.join()
 
-    def show_directory(self):
+    def show_library(self):
         if self.files_frame is not None:
             self.files_frame.destroy()
-        self.directory = ShowDir(self)
+        self.library = ShowLibrary(self)
 
     def search(self):
         keyword = self.search_entry.get()
@@ -185,11 +179,13 @@ class MainApp(ctk.CTkFrame):
     def get_file(self, file_name):
         to_send = "LINKFN|" + file_name
         send_with_size(self.cli_s, to_send)
+
     def share_files(self):
-        to_send = "SHAREF|" + str(len(local_files))
+        to_send = "UPLOAD|" + str(len(local_files))
         for file, song in local_files.items():
             to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
-        send_with_size(self.cli_s,to_send)
+        send_with_size(self.cli_s, to_send)
+
     def manu(self):
         print("\n=============\n" +
               "1. SCH - show server file list\n" +
@@ -221,7 +217,7 @@ class MainApp(ctk.CTkFrame):
             return "RULIVE"
 
 
-class ShowDir(ctk.CTkFrame):
+class ShowLibrary(ctk.CTkFrame):
     def __init__(self, master):
         self.master = master
         ctk.CTkFrame.__init__(self, master)
@@ -238,8 +234,9 @@ class ShowDir(ctk.CTkFrame):
         for i, header in enumerate(headers):
             header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
-        i=0
+        i = 0
         for song in local_files.values():
+
             file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=('Arial', 14), padx=10, pady=5)
             file_name.grid(row=i + 1, column=0, sticky='w')
 
@@ -252,18 +249,26 @@ class ShowDir(ctk.CTkFrame):
             genre_label = ctk.CTkLabel(table_frame, text=song.genre, font=('Arial', 14), padx=10, pady=5)
             genre_label.grid(row=i + 1, column=3, sticky='w')
 
-            play_button = ctk.CTkButton(table_frame, command=lambda f=file_name: self.play_song(file_name), text='Play')
+            play_button = ctk.CTkButton(table_frame, command=lambda f=file_name: self.play_song(os.path.join(CLI_PATH, song.file_name)), text='Play')
             play_button.grid(row=i + 1, column=7, sticky='w')
             i += 1
 
-    def play_song(self, file_name):
+    def play_song(self, fullname):
+        progress_bar=None
         try:
-            playsound.playsound(file_name)
+            progress_bar = ctk.CTkProgressBar(self,determinate_speed=0.2)
+            progress_bar.place(relx=0.4, rely=0.6)
+            progress_bar.start()
+            playsound.playsound(fullname)
+            print('playing ',fullname)
         except Exception as e:
             print(e)
+        print('exiting')
+        progress_bar.stop()
+        progress_bar.destroy()
 
 
-class LocalFilesFrame(ctk.CTkFrame):
+class LocalFiles(ctk.CTkFrame):
     def __init__(self, master):
         print('got to local files')
         self.files_list = [f for f in os.listdir(CLI_PATH) if
@@ -318,10 +323,11 @@ class LocalFilesFrame(ctk.CTkFrame):
             save_button.grid(row=i + 1, column=4, padx=10)
 
         continue_button = ctk.CTkButton(self, text='Continue', font=('Arial', 12), command=self.continue_to_main)
-        continue_button.place(relx=0.5,rely=0.8)
+        continue_button.place(relx=0.4,rely=0.7)
+
     def save_song_info(self, file_name, song_name, artist, genre):
         global local_files, SAVED_FILES
-        if file_name not in local_files.keys():
+        if file_name not in local_files.keys() and song_name != '' and artist != '' and genre != '':
             local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
                                           size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
             saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=('Arial', 12), padx=10, pady=5)
@@ -330,14 +336,14 @@ class LocalFilesFrame(ctk.CTkFrame):
             not_saved_label = ctk.CTkLabel(self, text=f"{file_name} already saved", font=('Arial', 12), padx=10, pady=5)
             not_saved_label.pack(pady=10)
 
-
     def continue_to_main(self):
         if len(local_files) == len(self.files_list):
             SAVED_FILES = True
             self.master.switch_frame(MainApp)
         else:
-            no_cont_label = ctk.CTkLabel(self, text="Please save all files before continue", font=('Arial', 12), padx=10, pady=5)
-            no_cont_label.place(relx=0.5,rely=0.9)
+            no_cont_label = ctk.CTkLabel(self, text="Please save all files before continue", font=('Arial', 12),
+                                         padx=10, pady=5)
+            no_cont_label.place(relx=0.5, rely=0.9)
 
 
 class SearchResult(ctk.CTkFrame):
@@ -441,10 +447,10 @@ class Signup(ctk.CTkFrame):
         self.password_entry = ctk.CTkEntry(self, show='*', font=('Arial', 12))
         self.password_entry.pack(pady=5)
 
-        login_button = ctk.CTkButton(self, text='signup', font=('Arial', 12), command=self.signup)
+        login_button = ctk.CTkButton(self, text='signup', font=('Arial', 12), command=self.signup_user)
         login_button.pack(pady=10)
 
-    def signup(self):
+    def signup_user(self):
         global USERNAME, LOGGED
         while not self.signed:
             self.username = self.username_entry.get()
@@ -453,18 +459,18 @@ class Signup(ctk.CTkFrame):
             to_send = f'SIGNUP|{self.username}|{password}'
             send_with_size(self.cli_s, to_send)
             result = recv_by_size(self.cli_s)
-            if result[-4:] == 'sign':
+            if result[-2:] == 'OK':
                 self.signed = True
                 LOGGED = True
                 USERNAME = self.username
-            elif result[-4:] == 'exst':
+            elif result[-2:] == 'NO':
                 tk.messagebox.showerror('Error',
                                         'username already exists or is currently logged, please try a different user')
         if self.signed:
             logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
             logging_label.pack(pady=5)
             self.master.set_username(self.username)
-            self.master.switch_frame(LocalFilesFrame)
+            self.master.switch_frame(LocalFiles)
 
 
 class Login(ctk.CTkFrame):
@@ -490,10 +496,11 @@ class Login(ctk.CTkFrame):
         self.password_entry = ctk.CTkEntry(self, show='*', font=('Arial', 12))
         self.password_entry.pack(pady=5)
 
-        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12), command=self.login, fg_color='#6DC868')
+        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12), command=self.login_user,
+                                     fg_color='#6DC868')
         login_button.pack(pady=10)
 
-    def login(self):
+    def login_user(self):
         global LOGGED, USERNAME
         while not self.logged:
             self.username = self.username_entry.get()
@@ -520,7 +527,7 @@ class Login(ctk.CTkFrame):
         else:
             logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
             logging_label.pack(pady=5)
-            self.master.switch_frame(LocalFilesFrame)
+            self.master.switch_frame(LocalFiles)
 
 
 def udp_log(side, message):
@@ -528,13 +535,15 @@ def udp_log(side, message):
         log.write(str(datetime.datetime.now())[:19] + " - " + message + "\n")
         if LOG_ALL:
             print(message)
+
+
 def check_valid_token(token):
     global token_dict
     print('got to check token')
     time.sleep(0.3)
     if token in token_dict.keys():
         time_difference = (
-                    datetime.datetime.now() - datetime.datetime.strptime(token_dict[token], DATETIME_FORMAT)).seconds
+                datetime.datetime.now() - datetime.datetime.strptime(token_dict[token], DATETIME_FORMAT)).seconds
         if time_difference < 7200:  # 2 hours
             token_lock.acquire()
             del token_dict[token]
@@ -636,6 +645,43 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
         udp_log("server", "End of send udp file")
 
 
+def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre):
+    """
+    will send file request and then will recv Binary data
+    """
+    # print("got to func")
+    global local_files
+    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    addr = (ip, UDP_PORT)
+    udp_sock.settimeout(10)
+    send_ok = False
+
+    to_send = "FRQ|" + fn + "|" + str(size) + "|" + token
+    try:
+        udp_sock.sendto(to_send.encode(), addr)
+        send_ok = True
+        if DEBUG:
+            udp_log("client", "Sent " + to_send + " to " + addr[0] + " " + str(addr[1]))
+
+    except socket.timeout:
+        print("timeout on socket - No answer")
+    except socket.error as e:
+        if e.errno == 10040:
+            udp_log("client", "Send faliled Too large file")
+        else:
+            udp_log("client", "Send faliled general socket error  " + e.message)
+
+    if send_ok and size > 0:
+        saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
+        if saved:
+            local_files[fn] = Song(fn, song_name, artist, genre, USERNAME, size=size)
+
+    else:
+        if DEBUG:
+            udp_log('client', "Send failed or size = 0")
+    udp_sock.close()
+
+
 def udp_file_recv(udp_sock, fullname, size, addr):
     done = False
     file_pos = 0
@@ -687,7 +733,7 @@ def udp_file_recv(udp_sock, fullname, size, addr):
                 keep[pack_cnt] = bin_data
                 if pack_cnt > max:
                     max = pack_cnt
-            last = try_to_move_old_packs_to_file(f_write, last, max, keep)
+            last = move_old_to_file(f_write, last, max, keep)
         if file_open:
             f_write.close()
         if done:
@@ -708,7 +754,7 @@ def udp_file_recv(udp_sock, fullname, size, addr):
         return False
 
 
-def try_to_move_old_packs_to_file(f_data, last, max, keep):
+def move_old_to_file(f_data, last, max, keep):
     to_del = []
 
     for i in range(last + 1, max + 1):
@@ -725,42 +771,6 @@ def try_to_move_old_packs_to_file(f_data, last, max, keep):
 
     return last
 
-def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre):
-    """
-    will send file request and then will recv Binary data
-    """
-    # print("got to func")
-    global local_files
-    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    addr = (ip, UDP_PORT)
-    udp_sock.settimeout(10)
-    send_ok = False
-
-    to_send = "FRQ|" + fn + "|" + str(size) + "|" + token
-    try:
-
-        udp_sock.sendto(to_send.encode(), addr)
-        send_ok = True
-        if DEBUG:
-            udp_log("client", "Sent " + to_send + " to " + addr[0] + " " + str(addr[1]))
-
-    except socket.timeout:
-        print("timeout on socket - No answer")
-    except socket.error as e:
-        if e.errno == 10040:
-            udp_log("client", "Send faliled Too large file")
-        else:
-            udp_log("client", "Send faliled general socket error  " + e.message)
-
-    if send_ok and size > 0:
-        saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
-        if saved:
-            local_files[fn] = Song(fn, song_name, artist, genre, USERNAME, size=size)
-
-    else:
-        if DEBUG:
-            udp_log('client', "Send failed or size = 0")
-    udp_sock.close()
 
 def main(cli_path, server_ip):
     print("before connect ip = " + server_ip)
@@ -775,6 +785,7 @@ def main(cli_path, server_ip):
     cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
     app = App(cli_s, cli_path)
     app.mainloop()
+
 
 if __name__ == "__main__":
     if len(argv) > 2:

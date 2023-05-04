@@ -150,11 +150,12 @@ def do_action(data, cli_ip):
                     # print('current answer:', answer)
             to_send = answer
 
-        elif action == "SHAREF":
+        elif action == "UPLOAD":
             files_lock.acquire()
             songs_database.add_client_folder(fields, cli_ip)
             files_lock.release()
-            to_send = "SHARBK" + "|OK"
+            to_send = "UPLDBK" + "|OK"
+
         elif action == "LINKFN":
             fn = fields[0]
             exists = songs_database.song_exists(fn)
@@ -204,6 +205,11 @@ def q_manager(tid, q):
 
 
 def load_files_from_server_folder(srv_path):
+    """
+
+    :param srv_path:
+    :return:
+    """
     global songs_database
     songs_database.add_server_folder(srv_path)
 
@@ -212,10 +218,10 @@ def main(srv_path):
     global exit_all
     exit_all = False
 
-    q = queue.Queue()
-    manager = threading.Thread(target=q_manager, args=(0, q, srv_path))
+    # q = queue.Queue()
+    # manager = threading.Thread(target=q_manager, args=(0, q, srv_path))""
 
-    load_files_from_server_folder(srv_path)
+    # load_files_from_server_folder(srv_path)
 
     s = socket.socket()
     s.bind(("0.0.0.0", TCP_PORT))
@@ -237,7 +243,7 @@ def main(srv_path):
     exit_all = True
     for s, t in clients.items():
         t.join()
-    manager.join()
+    # manager.join()
     users_database.logout_all()
 
     s.close()
