@@ -182,21 +182,22 @@ class UserORM():
         self.close_DB()
         return user
 
-    def is_available(self, file_name):
+    def is_available(self, file_name,req_user):
         self.open_DB()
         user = None
         sql = f"SELECT * FROM songs WHERE file_name=='{file_name}';"
         res = self.cursor.execute(sql)
         row = res.fetchone()
-        print(row)
         if row is not None:
             username = row[4]
-            print(username)
-            sql = f"SELECT * FROM Users WHERE username=='{username}';"
+            if req_user == username:
+                self.close_DB()
+                return False
+            sql = f"SELECT is_logged FROM Users WHERE username == '{username}';"
             res = self.cursor.execute(sql)
             row = res.fetchone()
             self.close_DB()
-            return row is not None
+            return int(row[0]) == 1
         else:
             self.close_DB()
             return False
@@ -369,7 +370,9 @@ class SongsORM():
 
 def main():
     # create an instance of the SongsORM class and create the songs table
-    songs_orm = SongsORM(r'E:\finaleProject\server_database.db')
+    songs_orm = SongsORM(r'server_database.db')
+    users_orm = UserORM(r'server_database.db')
+    print(users_orm.is_available('SZA - Kill Bill (Audio).wav','hello12'))
     # songs_orm.create_table()
 
     # create a song object and add it to the songs table
@@ -378,8 +381,7 @@ def main():
 
     # get all the songs from the songs table
     # all_songs = songs_orm.get_all_songs()
-    print(songs_orm.song_exists('Brakhage - No Coincidence.mp3'))
-    print(songs_orm.get_song_by_file('Brakhage - No Coincidence.mp3'))
+
 
 
 if __name__ == "__main__":

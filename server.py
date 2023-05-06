@@ -137,7 +137,6 @@ def do_action(data, cli_ip):
             valid, msg = users_database.signup(username,password,cli_ip)
             to_send = 'SIGNED' + "|"+msg
         elif action == "SEARCH":
-            print(fields[0])
             answer = 'SRCHBK'
             songs = songs_database.search_songs(fields[0])
             if len(songs) == 0:
@@ -147,7 +146,6 @@ def do_action(data, cli_ip):
                     is_available = users_database.is_available(song.file_name)
                     username = songs_database.get_user_by_song(song.file_name)
                     answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
-                    # print('current answer:', answer)
             to_send = answer
 
         elif action == "UPLOAD":

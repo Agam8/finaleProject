@@ -299,6 +299,7 @@ class ToplevelWindow(ctk.CTkToplevel):
         self.play_btn = ctk.CTkButton(self, text="Play", command=self.play, font=(FONT, 14))
         self.play_btn.pack()
         self.play_bar = ctk.CTkProgressBar(self)
+        self.play_bar.set(0)
         self.play_bar.pack(pady=2)
         self.paused = True
         self.playing = False
@@ -306,7 +307,7 @@ class ToplevelWindow(ctk.CTkToplevel):
         self.audio_length = 0
         self.current_sec = 0
         self.after_id = None
-
+        self.audio_length = 0
     def start_playing(self):
         p = pyaudio.PyAudio()
         chunk = 1024
@@ -331,6 +332,7 @@ class ToplevelWindow(ctk.CTkToplevel):
                     stream.write(data)
                     data = wf.readframes(chunk)
                     self.current_sec = chunk_total / wf.getframerate()
+
 
         self.playing = False
         stream.close()
@@ -365,6 +367,9 @@ class ToplevelWindow(ctk.CTkToplevel):
     def update_lbl(self):
         self.current_lbl.configure(text=f"{'%.1f' % self.current_sec}/{'%.1f' % self.audio_length}")
         self.after_id = self.current_lbl.after(5, self.update_lbl)
+        if self.audio_length != 0:
+            current_progress = self.current_sec / self.audio_length
+            self.play_bar.set(current_progress)
 
 
 class LocalFiles(ctk.CTkFrame):
