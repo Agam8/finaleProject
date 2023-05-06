@@ -47,8 +47,9 @@ class UserORM():
         self.close_DB()
         return user
 
-    def get_user_by_username(self, username):
+    def get_user_by_username(self, username:str):
         self.open_DB()
+        username=username.lower()
         user_data = None
         sql = f"SELECT * FROM users WHERE username='{username}';"
         res = self.cursor.execute(sql)
@@ -70,9 +71,10 @@ class UserORM():
         self.close_DB()
         return added
 
-    def check_user_exists(self, username):
+    def check_user_exists(self, username:str):
         self.open_DB()
         exists = False
+        username.lower()
         sql = f"SELECT * FROM users WHERE username='{username}';"
         res = self.cursor.execute(sql)
         if res.fetchone() is not None:
@@ -86,15 +88,8 @@ class UserORM():
         self.cursor.execute(sql)
         self.close_DB()
 
-    def create_user(self, username, password, ip):
-        self.open_DB()
-        new_user = User(username=username, password=password, current_ip="", is_logged=0)
-        self.cursor.execute("INSERT INTO users (username, password, current_ip, is_logged) VALUES (?, ?, ?, ?)",
-                            (new_user.username, new_user.password, new_user.current_ip, new_user.is_logged))
-        self.commit()
-        self.close_DB()
-
     def login(self, username, password, ip):
+        username.lower()
         user = self.get_user_by_username(username)
         print(user)
         if user is not None:
@@ -111,6 +106,7 @@ class UserORM():
         return False
 
     def signup(self, username, password, cli_ip):
+        username.lower()
         user = self.get_user_by_username(username)
         if user is None:
             secure_pass = hashlib.sha256(password.encode()).hexdigest()
@@ -144,6 +140,7 @@ class UserORM():
         self.close_DB()
 
     def is_user_logged_in(self, username):
+        username.lower()
         self.open_DB()
         sql = f"SELECT is_logged FROM users WHERE username='{username}';"
         res = self.cursor.execute(sql)
@@ -154,6 +151,7 @@ class UserORM():
         return False
 
     def change_status_and_ip(self, username, new_ip):
+        username.lower()
         user = self.get_user_by_username(username)
         self.open_DB()
         if user is not None and user.is_logged == 0:

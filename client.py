@@ -12,12 +12,15 @@ from sqlCommands import Song
 import customtkinter as ctk
 import tkinter as tk
 import playsound
+import wave
+import pyaudio
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
 LOG_ALL = True
 token_dict = {}
 token_lock = threading.Lock()
+play_lock = threading.Lock()
 UDP_PORT = 7777
 TCP_PORT = 8888
 FILE_PACK_SIZE = 1000
@@ -28,6 +31,7 @@ exit_all = False
 CLI_PATH = ''
 local_files = {}
 SAVED_FILES = False
+FONT = 'Yu Gothic UI'
 
 
 class App(ctk.CTk):
@@ -48,7 +52,7 @@ class App(ctk.CTk):
         if self._frame is not None:
             self._frame.destroy()
         self._frame = new_frame
-        print('switched to ', frame_class)
+        # print('switched to ', frame_class)
 
     def get_cli_socket(self):
         return self.cli_s
@@ -77,10 +81,14 @@ class MainApp(ctk.CTkFrame):
         self.loop()
 
     def recv_thread_func(self):
+        global exit_all
         while True:
             data = recv_by_size(self.cli_s)
             if data == "" or exit_all:
                 print("seems server DC")
+                tk.messagebox.showerror('Error', 'Server Disconnected')
+                exit_all = True
+
                 break
             if len(data) < 8:
                 print("seems bad message format:" + data)
@@ -122,8 +130,12 @@ class MainApp(ctk.CTkFrame):
             udp_cli = threading.Thread(target=udp_client,
                                        args=(CLI_PATH, fip, fname, fsize, ftoken, song_name, artist, genre))
             udp_cli.start()
-            # print("Run udp client to download the file " + fname + " from " + fip)
+            print("Run udp client to download the file " + fname + " from " + fip)
             udp_cli.join()
+            if fname in local_files.keys():
+                tk.messagebox.showinfo('Download Status', f'{fname} downloaded succesfully from {fip}')
+            else:
+                tk.messagebox.showerror('Download Status', f"{fname} couldn't be downloaded. Please Try again later")
 
         elif action == "SENDTK":  # server sends to listening client
             token = fields[0]
@@ -142,9 +154,9 @@ class MainApp(ctk.CTkFrame):
     def loop(self):
         global exit_all
         self.share_files()
-        title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=('Arial', 18), text_color='#6DC868')
+        title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=(FONT, 18), text_color='#6DC868')
         title_label.pack(pady=10)
-        self.search_entry = ctk.CTkEntry(self, font=('Arial', 12))
+        self.search_entry = ctk.CTkEntry(self, font=(FONT, 12))
         self.search_entry.pack(pady=5)
 
         search_button = ctk.CTkButton(self, text='search', command=self.search)
@@ -222,8 +234,10 @@ class ShowLibrary(ctk.CTkFrame):
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.8, relheight=0.95, relwidth=0.95)
-        title_label = ctk.CTkLabel(self, text='My Library', font=('Arial', 18))
+        title_label = ctk.CTkLabel(self, text='My Library', font=(FONT, 18))
         title_label.pack(pady=10)
+
+        self.toplevel_window = None
 
         # Create a table to display the song information
         table_frame = ctk.CTkFrame(self)
@@ -232,47 +246,132 @@ class ShowLibrary(ctk.CTkFrame):
         # Create the headers for the table
         headers = ['File Name', 'Song', 'Artist', 'Genre', 'Play']
         for i, header in enumerate(headers):
-            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
+            header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
         i = 0
+        song_id = {}
         for song in local_files.values():
-
-            file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=('Arial', 14), padx=10, pady=5)
+            song_id[i] = song
+            i += 1
+        i = 0
+        for song in local_files.values():
+            file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=(FONT, 14), padx=10, pady=5)
             file_name.grid(row=i + 1, column=0, sticky='w')
 
-            song_label = ctk.CTkLabel(table_frame, text=song.song_name, font=('Arial', 14), padx=10, pady=5)
+            song_label = ctk.CTkLabel(table_frame, text=song.song_name, font=(FONT, 14), padx=10, pady=5)
             song_label.grid(row=i + 1, column=1, sticky='w')
 
-            artist_label = ctk.CTkLabel(table_frame, text=song.artist, font=('Arial', 14), padx=10, pady=5)
+            artist_label = ctk.CTkLabel(table_frame, text=song.artist, font=(FONT, 14), padx=10, pady=5)
             artist_label.grid(row=i + 1, column=2, sticky='w')
 
-            genre_label = ctk.CTkLabel(table_frame, text=song.genre, font=('Arial', 14), padx=10, pady=5)
+            genre_label = ctk.CTkLabel(table_frame, text=song.genre, font=(FONT, 14), padx=10, pady=5)
             genre_label.grid(row=i + 1, column=3, sticky='w')
 
-            play_button = ctk.CTkButton(table_frame, command=lambda f=file_name: self.play_song(os.path.join(CLI_PATH, song.file_name)), text='Play')
+            play_button = ctk.CTkButton(table_frame, command=lambda fullname=os.path.join(CLI_PATH, song.file_name),
+                                                                    song_name=song.song_name:
+            self.open_toplevel(fullname, song_name), text=f'Play')
             play_button.grid(row=i + 1, column=7, sticky='w')
             i += 1
 
-    def play_song(self, fullname):
-        progress_bar=None
-        try:
-            progress_bar = ctk.CTkProgressBar(self,determinate_speed=0.2)
-            progress_bar.place(relx=0.4, rely=0.6)
-            progress_bar.start()
-            playsound.playsound(fullname)
-            print('playing ',fullname)
-        except Exception as e:
-            print(e)
-        print('exiting')
-        progress_bar.stop()
-        progress_bar.destroy()
+    def open_toplevel(self, fullname, song_name):
+        if self.toplevel_window is None or not self.toplevel_window.winfo_exists():
+            self.toplevel_window = ToplevelWindow(self, fullname, song_name)  # create window if its None or destroyed
+        else:
+            self.toplevel_window.focus()  # if window exists focus it
+
+
+class ToplevelWindow(ctk.CTkToplevel):
+    def __init__(self, master, file, song_name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.master = master
+        self.file = file
+        self.song_name = song_name
+        self.geometry("400x300")
+
+        self.label = ctk.CTkLabel(self, text=f"Playing {self.song_name}", font=(FONT, 14))
+        self.label.pack(padx=20, pady=20)
+        self.current_lbl = ctk.CTkLabel(self, text="0/0", font=(FONT, 14))
+        self.current_lbl.pack()
+
+        self.pause_btn = ctk.CTkButton(self, text="Pause", command=self.pause, font=(FONT, 14))
+        self.pause_btn.pack()
+
+        self.play_btn = ctk.CTkButton(self, text="Play", command=self.play, font=(FONT, 14))
+        self.play_btn.pack()
+        self.play_bar = ctk.CTkProgressBar(self)
+        self.play_bar.pack(pady=2)
+        self.paused = True
+        self.playing = False
+
+        self.audio_length = 0
+        self.current_sec = 0
+        self.after_id = None
+
+    def start_playing(self):
+        p = pyaudio.PyAudio()
+        chunk = 1024
+        with wave.open(self.file, "rb") as wf:
+
+            self.audio_length = wf.getnframes() / float(wf.getframerate())
+            self.play_bar.configure(indeterminate_speed=1/self.audio_length)
+            stream = p.open(format=
+                            p.get_format_from_width(wf.getsampwidth()),
+                            channels=wf.getnchannels(),
+                            rate=wf.getframerate(),
+                            output=True)
+
+            data = wf.readframes(chunk)
+
+            chunk_total = 0
+            self.play_bar.start()
+            while data != b"" and self.playing:
+
+                if not self.paused:
+                    chunk_total += chunk
+                    stream.write(data)
+                    data = wf.readframes(chunk)
+                    self.current_sec = chunk_total / wf.getframerate()
+
+        self.playing = False
+        stream.close()
+        p.terminate()
+
+    def pause(self):
+        self.paused = True
+
+        if self.after_id:
+            self.current_lbl.after_cancel(self.after_id)
+            self.after_id = None
+
+        self.play_bar.stop()
+
+    def play(self):
+        if not self.playing:
+            self.playing = True
+            threading.Thread(target=self.start_playing, daemon=True).start()
+
+        if self.after_id is None:
+            self.update_lbl()
+
+        self.paused = False
+        self.play_bar.start()
+
+    def stop(self):
+        self.playing = False
+        if self.after_id:
+            self.current_lbl.after_cancel(self.after_id)
+        self.after_id = None
+
+    def update_lbl(self):
+        self.current_lbl.configure(text=f"{'%.1f' % self.current_sec}/{'%.1f' % self.audio_length}")
+        self.after_id = self.current_lbl.after(5, self.update_lbl)
 
 
 class LocalFiles(ctk.CTkFrame):
     def __init__(self, master):
         print('got to local files')
         self.files_list = [f for f in os.listdir(CLI_PATH) if
-                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.mp3')]
+                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
         print(self.files_list)
         if len(self.files_list) == 0:
             print('len is 0')
@@ -283,7 +382,7 @@ class LocalFiles(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
 
-        title_label = ctk.CTkLabel(self, text='Add Local Files', font=('Arial', 18))
+        title_label = ctk.CTkLabel(self, text='Add Local Files', font=(FONT, 18))
         title_label.pack(pady=10)
 
         # Create a table to display the song information
@@ -293,47 +392,47 @@ class LocalFiles(ctk.CTkFrame):
         # Create the headers for the table
         headers = ['File Name', 'Song Name', 'Artist', 'Genre']
         for i, header in enumerate(headers):
-            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 12), padx=10, pady=5)
+            header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 12), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
 
         # Get the local files in the directory
         self.files_list = [f for f in os.listdir(CLI_PATH) if
-                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.mp3')]
+                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
         print(self.files_list)
         # Add the rows to the table for each local file
         for i, file_name in enumerate(self.files_list):
             # Create the labels for the file name, song name, artist, and genre
-            file_name_label = ctk.CTkLabel(table_frame, text=file_name, font=('Arial', 12), padx=10, pady=5)
+            file_name_label = ctk.CTkLabel(table_frame, text=file_name, font=(FONT, 12), padx=10, pady=5)
             file_name_label.grid(row=i + 1, column=0, sticky='w')
 
-            song_name_entry = ctk.CTkEntry(table_frame, font=('Arial', 12))
+            song_name_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
             song_name_entry.grid(row=i + 1, column=1, sticky='w')
 
-            artist_entry = ctk.CTkEntry(table_frame, font=('Arial', 12))
+            artist_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
             artist_entry.grid(row=i + 1, column=2, sticky='w')
 
-            genre_entry = ctk.CTkEntry(table_frame, font=('Arial', 12))
+            genre_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
             genre_entry.grid(row=i + 1, column=3, sticky='w')
 
             # Save the information when the user clicks the save button
-            save_button = ctk.CTkButton(table_frame, text='Save', font=('Arial', 12),
+            save_button = ctk.CTkButton(table_frame, text='Save', font=(FONT, 12),
                                         command=lambda f=file_name, sn=song_name_entry, a=artist_entry,
                                                        g=genre_entry: self.save_song_info(f, sn.get(), a.get(),
                                                                                           g.get()))
             save_button.grid(row=i + 1, column=4, padx=10)
 
-        continue_button = ctk.CTkButton(self, text='Continue', font=('Arial', 12), command=self.continue_to_main)
-        continue_button.place(relx=0.4,rely=0.7)
+        continue_button = ctk.CTkButton(self, text='Continue', font=(FONT, 12), command=self.continue_to_main)
+        continue_button.place(relx=0.4, rely=0.7)
 
     def save_song_info(self, file_name, song_name, artist, genre):
         global local_files, SAVED_FILES
         if file_name not in local_files.keys() and song_name != '' and artist != '' and genre != '':
             local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
                                           size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
-            saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=('Arial', 12), padx=10, pady=5)
+            saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=(FONT, 12), padx=10, pady=5)
             saved_label.pack(pady=10)
         else:
-            not_saved_label = ctk.CTkLabel(self, text=f"{file_name} already saved", font=('Arial', 12), padx=10, pady=5)
+            not_saved_label = ctk.CTkLabel(self, text=f"{file_name} already saved", font=(FONT, 12), padx=10, pady=5)
             not_saved_label.pack(pady=10)
 
     def continue_to_main(self):
@@ -341,9 +440,7 @@ class LocalFiles(ctk.CTkFrame):
             SAVED_FILES = True
             self.master.switch_frame(MainApp)
         else:
-            no_cont_label = ctk.CTkLabel(self, text="Please save all files before continue", font=('Arial', 12),
-                                         padx=10, pady=5)
-            no_cont_label.place(relx=0.5, rely=0.9)
+            tk.messagebox.showerror('Error', 'Please fill out all spaces before continue')
 
 
 class SearchResult(ctk.CTkFrame):
@@ -351,7 +448,7 @@ class SearchResult(ctk.CTkFrame):
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.8, relheight=0.95, relwidth=0.95)
-        title_label = ctk.CTkLabel(self, text='Search Results', font=('Arial', 18))
+        title_label = ctk.CTkLabel(self, text='Search Results', font=(FONT, 18))
         title_label.pack(pady=10)
 
         # Create a table to display the search results
@@ -366,39 +463,39 @@ class SearchResult(ctk.CTkFrame):
 
         headers = ['File Name', 'Song', 'Artist', 'Genre', 'Size', 'Username', 'Available', 'Download']
         for i, header in enumerate(headers):
-            header_label = ctk.CTkLabel(table_frame, text=header, font=('Arial', 14), padx=10, pady=5)
+            header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
 
         # Add the search results to the table
         i = 1
         for f in fields:
             info = f.split("~")
-            file_name = ctk.CTkLabel(table_frame, text=info[0], font=('Arial', 14), padx=10, pady=5)
+            file_name = ctk.CTkLabel(table_frame, text=info[0], font=(FONT, 14), padx=10, pady=5)
             file_name.grid(row=i + 1, column=0, sticky='w')
 
-            song_label = ctk.CTkLabel(table_frame, text=info[1], font=('Arial', 14), padx=10, pady=5)
+            song_label = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=5)
             song_label.grid(row=i + 1, column=1, sticky='w')
 
-            artist_label = ctk.CTkLabel(table_frame, text=info[2], font=('Arial', 14), padx=10, pady=5)
+            artist_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=5)
             artist_label.grid(row=i + 1, column=2, sticky='w')
 
-            genre_label = ctk.CTkLabel(table_frame, text=info[3], font=('Arial', 14), padx=10, pady=5)
+            genre_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=5)
             genre_label.grid(row=i + 1, column=3, sticky='w')
 
-            size_label = ctk.CTkLabel(table_frame, text=info[4], font=('Arial', 14), padx=10, pady=5)
+            size_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=5)
             size_label.grid(row=i + 1, column=4, sticky='w')
 
-            username_label = ctk.CTkLabel(table_frame, text=info[5], font=('Arial', 14), padx=10, pady=5)
+            username_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=5)
             username_label.grid(row=i + 1, column=5, sticky='w')
 
-            available_label = ctk.CTkLabel(table_frame, text=info[6], font=('Arial', 14), padx=10, pady=5)
+            available_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=5)
             available_label.grid(row=i + 1, column=6, sticky='w')
             if info[6] == 'True':
                 print('download is available')
                 download_button = ctk.CTkButton(table_frame, command=lambda f=info[0]: self.master.get_file(f),
-                                                text='Download!')
+                                                text='Download!', font=(FONT, 14))
             else:
-                download_button = ctk.CTkButton(table_frame, text='Unavailable')
+                download_button = ctk.CTkButton(table_frame, text='Unavailable', font=(FONT, 14))
             download_button.grid(row=i + 1, column=7, sticky='w')
 
             i += 1
@@ -411,14 +508,14 @@ class LoginOrSignUp(ctk.CTkFrame):
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
 
         self.cli_s = self.master.get_cli_socket()
-        title_label = ctk.CTkLabel(self, text='Welcome!', font=('Arial', 18))
+        title_label = ctk.CTkLabel(self, text='Welcome!', font=(FONT, 24))
         title_label.pack(pady=10)
 
-        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12),
+        login_button = ctk.CTkButton(self, text='Login', font=(FONT, 20),
                                      command=lambda: self.master.switch_frame(Login))
         login_button.pack(pady=10)
 
-        signup_button = ctk.CTkButton(self, text='Sign up', font=('Arial', 12),
+        signup_button = ctk.CTkButton(self, text='Sign up', font=(FONT, 20),
                                       command=lambda: self.master.switch_frame(Signup))
         signup_button.pack(pady=10)
 
@@ -432,22 +529,22 @@ class Signup(ctk.CTkFrame):
         self.cli_s = master.cli_s
 
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        title_label = ctk.CTkLabel(self, text='Sign Up', font=('Arial', 18), text_color='#6DC868')
+        title_label = ctk.CTkLabel(self, text='Sign Up', font=(FONT, 18), text_color='#6DC868')
         title_label.pack(pady=10)
 
-        username_label = ctk.CTkLabel(self, text='Username:', font=('Arial', 12))
+        username_label = ctk.CTkLabel(self, text='Username:', font=(FONT, 12))
         username_label.pack(pady=5)
 
-        self.username_entry = ctk.CTkEntry(self, font=('Arial', 12))
+        self.username_entry = ctk.CTkEntry(self, font=(FONT, 12))
         self.username_entry.pack(pady=5)
 
-        password_label = ctk.CTkLabel(self, text='Password:', font=('Arial', 12))
+        password_label = ctk.CTkLabel(self, text='Password:', font=(FONT, 12))
         password_label.pack(pady=5)
 
-        self.password_entry = ctk.CTkEntry(self, show='*', font=('Arial', 12))
+        self.password_entry = ctk.CTkEntry(self, show='*', font=(FONT, 12))
         self.password_entry.pack(pady=5)
 
-        login_button = ctk.CTkButton(self, text='signup', font=('Arial', 12), command=self.signup_user)
+        login_button = ctk.CTkButton(self, text='signup', font=(FONT, 12), command=self.signup_user)
         login_button.pack(pady=10)
 
     def signup_user(self):
@@ -465,9 +562,9 @@ class Signup(ctk.CTkFrame):
                 USERNAME = self.username
             elif result[-2:] == 'NO':
                 tk.messagebox.showerror('Error',
-                                        'username already exists or is currently logged, please try a different user')
+                                        'Username already exists or is currently logged, please try a different user')
         if self.signed:
-            logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
+            logging_label = ctk.CTkLabel(self, text='logging in...', font=(FONT, 12))
             logging_label.pack(pady=5)
             self.master.set_username(self.username)
             self.master.switch_frame(LocalFiles)
@@ -481,22 +578,22 @@ class Login(ctk.CTkFrame):
         self.username = ''
         self.cli_s = master.cli_s
 
-        title_label = ctk.CTkLabel(self, text='Login', font=('Arial', 18))
+        title_label = ctk.CTkLabel(self, text='Login', font=(FONT, 18))
         title_label.pack(pady=10)
 
-        username_label = ctk.CTkLabel(self, text='Username:', font=('Arial', 12))
+        username_label = ctk.CTkLabel(self, text='Username:', font=(FONT, 12))
         username_label.pack(pady=5)
 
-        self.username_entry = ctk.CTkEntry(self, font=('Arial', 12))
+        self.username_entry = ctk.CTkEntry(self, font=(FONT, 12))
         self.username_entry.pack(pady=5)
 
-        password_label = ctk.CTkLabel(self, text='Password:', font=('Arial', 12))
+        password_label = ctk.CTkLabel(self, text='Password:', font=(FONT, 12))
         password_label.pack(pady=5)
 
-        self.password_entry = ctk.CTkEntry(self, show='*', font=('Arial', 12))
+        self.password_entry = ctk.CTkEntry(self, show='*', font=(FONT, 12))
         self.password_entry.pack(pady=5)
 
-        login_button = ctk.CTkButton(self, text='Login', font=('Arial', 12), command=self.login_user,
+        login_button = ctk.CTkButton(self, text='Login', font=(FONT, 12), command=self.login_user,
                                      fg_color='#6DC868')
         login_button.pack(pady=10)
 
@@ -516,7 +613,7 @@ class Login(ctk.CTkFrame):
                 LOGGED = True
                 print('logging in')
             elif auth_result == "GOODBY":
-                tk.messagebox.showerror('Error', 'exceeded maximum tries. Please try to log in later')
+                tk.messagebox.showerror('Error', 'Exceeded maximum tries. Please try to log in later')
                 self.destroy()
                 break
             else:
@@ -525,7 +622,7 @@ class Login(ctk.CTkFrame):
         if not self.logged:
             self.username = ''
         else:
-            logging_label = ctk.CTkLabel(self, text='logging in...', font=('Arial', 12))
+            logging_label = ctk.CTkLabel(self, text='logging in...', font=(FONT, 12))
             logging_label.pack(pady=5)
             self.master.switch_frame(LocalFiles)
 
@@ -772,6 +869,12 @@ def move_old_to_file(f_data, last, max, keep):
     return last
 
 
+def on_closing(app):
+    if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
+        app.destroy()
+        app.quit()
+
+
 def main(cli_path, server_ip):
     print("before connect ip = " + server_ip)
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -785,6 +888,8 @@ def main(cli_path, server_ip):
     cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
     app = App(cli_s, cli_path)
     app.mainloop()
+
+    print('goodbye')
 
 
 if __name__ == "__main__":

@@ -1065,3 +1065,5 @@
 2023-05-02 13:08:42 - Just got part 328 file with 1000 bytes pos = 96000 header 000001000,00000328,803204549d6606a497ce60cb6b5482fb 
 2023-05-02 13:08:42 - Just got part 394 file with 1000 bytes pos = 97000 header 000001000,00000394,52e0e932540bea957cf1b54be4dcd12c 
 2023-05-02 13:08:42 - Just got part 416 file with 1000 bytes pos = 98000 header 000001000,00000416,9152739f27c0910f6c8f433c42a70ca1 
+2023-05-05 19:19:00 - Sent FRQ|Brakhage - No Coincidence.mp3|3265346|ac1mTSuWk0nGcp4Y to 127.0.0.1 7777
+2023-05-05 19:19:10 - Failed to recv: Nonetimed out

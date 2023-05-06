@@ -4,6 +4,7 @@ import audiosegment
 import os
 import glob
 from pydub import AudioSegment"""
+import contextlib
 import os.path
 
 # import pytube.exceptions
@@ -116,7 +117,7 @@ def download_wait(directory, timeout):
                 dl_wait = True
 
         seconds += 1
-    time.sleep(10)
+    time.sleep(5)
 
 
 def download_youtube(url:str,directory:str):
@@ -151,22 +152,27 @@ def download_youtube(url:str,directory:str):
   download_wait(directory,240)
 
 def main(client_path):
-    videosSearch = VideosSearch('hello adele', limit=1)
-    url = videosSearch.result()['result'][0]['link']
-    temp = tempfile.TemporaryDirectory()
-    download_youtube(url, temp.name)
-    fpath = f"{temp.name}\\{os.listdir(temp.name)[0]}"
-    try:
-        AudioSegment.from_file(fpath).export(f"{client_path}/{videosSearch.result()['result'][0]['title']}.wav",
-                                             format="wav")
-    except Exception as e:
-        print(e)
-    time.sleep(5)
-    try:
-        os.remove(fpath)
-        temp.cleanup()
-    except Exception as e:
-        print(e)
+    with contextlib.redirect_stdout as f:
+        videosSearch = VideosSearch('hello adele', limit=1)
+        url = videosSearch.result()['result'][0]['link']
+        temp = tempfile.TemporaryDirectory()
+        print()
+        download_youtube(url, temp.name)
+        fpath = f"{temp.name}\\{os.listdir(temp.name)[0]}"
+        try:
+            AudioSegment.from_file(fpath).export(f"{client_path}/{videosSearch.result()['result'][0]['title']}.wav",
+                                                 format="wav")
+        except Exception as e:
+            print(e)
+        time.sleep(5)
+        try:
+            os.remove(fpath)
+            temp.cleanup()
+        except Exception as e:
+            print(e)
 
 
-main('client_songs')
+def action(**kwargs):
+    song_name=kwargs['song_name']
+    print(song_name)
+action(song_name='hello')
