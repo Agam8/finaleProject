@@ -138,12 +138,13 @@ def do_action(data, cli_ip):
             to_send = 'SIGNED' + "|"+msg
         elif action == "SEARCH":
             answer = 'SRCHBK'
+            print('getting songs')
             songs = songs_database.search_songs(fields[0])
             if len(songs) == 0:
                 answer += ''
             else:
                 for song in songs:
-                    is_available = users_database.is_available(song.file_name)
+                    is_available = users_database.is_available(song.file_name,fields[1])
                     username = songs_database.get_user_by_song(song.file_name)
                     answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
             to_send = answer

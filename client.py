@@ -11,7 +11,7 @@ from sys import argv
 from sqlCommands import Song
 import customtkinter as ctk
 import tkinter as tk
-import playsound
+from PIL import Image, ImageTk
 import wave
 import pyaudio
 
@@ -185,7 +185,7 @@ class MainApp(ctk.CTkFrame):
 
     def search(self):
         keyword = self.search_entry.get()
-        to_send = "SEARCH|" + keyword
+        to_send = "SEARCH|" + keyword + '|' + USERNAME
         send_with_size(self.cli_s, to_send)
 
     def get_file(self, file_name):
@@ -524,6 +524,9 @@ class LoginOrSignUp(ctk.CTkFrame):
                                       command=lambda: self.master.switch_frame(Signup))
         signup_button.pack(pady=10)
 
+        image=ctk.CTkImage(Image.open('logo.png'),size=(500,312))
+        image_label=ctk.CTkLabel(self,text='',image=image)
+        image_label.pack(pady=15)
 
 class Signup(ctk.CTkFrame):
     def __init__(self, master):

@@ -193,11 +193,14 @@ class UserORM():
             if req_user == username:
                 self.close_DB()
                 return False
-            sql = f"SELECT is_logged FROM Users WHERE username == '{username}';"
+            sql = f"SELECT is_logged FROM Users WHERE username == '{username.lower()}';"
             res = self.cursor.execute(sql)
             row = res.fetchone()
             self.close_DB()
-            return int(row[0]) == 1
+            if row is not None:
+                return int(row[0]) == 1
+            else:
+                return False
         else:
             self.close_DB()
             return False
