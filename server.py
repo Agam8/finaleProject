@@ -29,12 +29,22 @@ def login(client_socket,cli_ip):
     logged = False
     username=''
     data = recv_by_size(client_socket)
+
+    if data == "":
+        print("Error: Seems Client DC")
+        return False,''
     while data[:3] == 'SGN':
+        if data == "":
+            print("Error: Seems Client DC")
+            return False, ''
         to_send = do_action(data, cli_ip)
         send_with_size(client_socket, to_send)
         data = recv_by_size(client_socket)
 
     while not logged:
+        if data == "":
+            print("Error: Seems Client DC")
+            return False, ''
         if tries!=5:
             data = recv_by_size(client_socket)
         to_send = do_action(data,cli_ip)
@@ -61,6 +71,9 @@ def handle_token(cli_ip,sock):
 
 def handle_client(sock, tid, cli_ip):
     global exit_all
+    if exit_all:
+        sock.close()
+        return
     print("New Client num " + str(tid))
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(r'cert\cert.pem', r'cert\key.pem')
@@ -190,19 +203,6 @@ def do_action(data, cli_ip):
     return to_send
 
 
-def q_manager(tid, q):
-    global exit_all
-
-    print("manager start:" + str(tid))
-    while not exit_all:
-        item = q.get()
-        print("manager got somthing:" + str(item))
-        # do some work with it(item)
-        q.task_done()
-        time.sleep(0.3)
-    print("Manager say Bye")
-
-
 def load_files_from_server_folder(srv_path):
     """
 
@@ -213,15 +213,9 @@ def load_files_from_server_folder(srv_path):
     songs_database.add_server_folder(srv_path)
 
 
-def main(srv_path):
+def main():
     global exit_all
     exit_all = False
-
-    # q = queue.Queue()
-    # manager = threading.Thread(target=q_manager, args=(0, q, srv_path))""
-
-    # load_files_from_server_folder(srv_path)
-
     s = socket.socket()
     s.bind(("0.0.0.0", TCP_PORT))
     s.listen(4)
@@ -249,7 +243,4 @@ def main(srv_path):
 
 
 if __name__ == "__main__":
-    if len(argv) >= 2:
-        main(argv[1])
-    else:
-        main('server_files')
+    main()

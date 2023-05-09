@@ -1,5 +1,6 @@
 __author__ = 'Agam'
 
+import customtkinter
 import datetime
 import sys
 import socket, time
@@ -11,7 +12,7 @@ from sys import argv
 from sqlCommands import Song
 import customtkinter as ctk
 import tkinter as tk
-from PIL import Image, ImageTk
+from PIL import Image
 import wave
 import pyaudio
 
@@ -32,14 +33,13 @@ CLI_PATH = ''
 local_files = {}
 SAVED_FILES = False
 FONT = 'Yu Gothic UI'
-
-
+error_handler = None
 class App(ctk.CTk):
     def __init__(self, cli_s, cli_path):
-        global CLI_PATH
+        global CLI_PATH,error_handler
+        ctk.CTk.__init__(self)
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme('green')
-        ctk.CTk.__init__(self)
         self.geometry('900x900')
         self._frame = None
         self.cli_s = cli_s
@@ -63,6 +63,13 @@ class App(ctk.CTk):
     def set_username(self, username):
         self.username = username
 
+    def on_closing(self):
+        if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
+            for child in self.winfo_children():
+                child.destroy()
+            self.destroy()
+
+
 
 class MainApp(ctk.CTkFrame):
     def __init__(self, master):
@@ -76,8 +83,11 @@ class MainApp(ctk.CTkFrame):
         self.recv_thread = threading.Thread(target=self.recv_thread_func)
         self.recv_thread.start()
         time.sleep(0.3)
+        self.search_entry = None
         self.search_results = None
         self.files_frame = None
+        self.search_progress = ctk.CTkProgressBar(self)
+        self.search_label = ctk.CTkLabel(self,text=f'')
         self.loop()
 
     def recv_thread_func(self):
@@ -109,6 +119,11 @@ class MainApp(ctk.CTkFrame):
         elif action == "SRCHBK":
             if self.search_results is not None:
                 self.search_results.destroy()
+            self.search_progress.stop()
+            self.search_progress.destroy()
+            if self.search_label is not None:
+                self.search_label.configure(text='')
+                self.search_label.pack()
             self.search_results = SearchResult(self, fields)
 
         elif action == "UPLDBK":
@@ -154,15 +169,15 @@ class MainApp(ctk.CTkFrame):
     def loop(self):
         global exit_all
         self.share_files()
-        title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=(FONT, 18), text_color='#6DC868')
+        title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=(FONT, 24))
         title_label.pack(pady=10)
-        self.search_entry = ctk.CTkEntry(self, font=(FONT, 12))
+        self.search_entry = ctk.CTkEntry(self, font=(FONT, 14))
         self.search_entry.pack(pady=5)
 
-        search_button = ctk.CTkButton(self, text='search', command=self.search)
+        search_button = ctk.CTkButton(self, text='Search', command=self.search,font=(FONT,14))
         search_button.pack(pady=10)
 
-        my_dir_button = ctk.CTkButton(self, text='My Directory', command=self.show_library)
+        my_dir_button = ctk.CTkButton(self, text='My Library', command=self.show_library,font=(FONT,14))
         my_dir_button.pack(pady=10)
 
         while True:
@@ -170,7 +185,6 @@ class MainApp(ctk.CTkFrame):
 
             if data == "q":
                 break
-
             send_with_size(self.cli_s, data)
 
         self.cli_s.close()
@@ -185,6 +199,12 @@ class MainApp(ctk.CTkFrame):
 
     def search(self):
         keyword = self.search_entry.get()
+        self.search_label.configure(text=f"searching for '{keyword}'...",font=(FONT,12))
+        self.search_label.pack()
+        self.search_progress = ctk.CTkProgressBar(self)
+        self.search_progress.set(0)
+        self.search_progress.pack(pady=2)
+        self.search_progress.start()
         to_send = "SEARCH|" + keyword + '|' + USERNAME
         send_with_size(self.cli_s, to_send)
 
@@ -432,6 +452,9 @@ class LocalFiles(ctk.CTkFrame):
     def save_song_info(self, file_name, song_name, artist, genre):
         global local_files, SAVED_FILES
         if file_name not in local_files.keys() and song_name != '' and artist != '' and genre != '':
+            if "'" in song_name or "'" in artist or "'" in genre:
+                tk.messagebox.showwarning('Warning',"The song information contains non valid chars and cannot be saved")
+                return
             local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
                                           size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
             saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=(FONT, 12), padx=10, pady=5)
@@ -448,11 +471,13 @@ class LocalFiles(ctk.CTkFrame):
             tk.messagebox.showerror('Error', 'Please fill out all spaces before continue')
 
 
-class SearchResult(ctk.CTkFrame):
+class SearchResult(ctk.CTkScrollableFrame):
     def __init__(self, master, fields):
         self.master = master
-        ctk.CTkFrame.__init__(self, master)
+        ctk.CTkScrollableFrame.__init__(self, master)
+        self.update_idletasks()
         self.place(anchor='center', relx=0.5, rely=0.8, relheight=0.95, relwidth=0.95)
+        self.configure()
         title_label = ctk.CTkLabel(self, text='Search Results', font=(FONT, 18))
         title_label.pack(pady=10)
 
@@ -475,33 +500,33 @@ class SearchResult(ctk.CTkFrame):
         i = 1
         for f in fields:
             info = f.split("~")
-            file_name = ctk.CTkLabel(table_frame, text=info[0], font=(FONT, 14), padx=10, pady=5)
-            file_name.grid(row=i + 1, column=0, sticky='w')
+            file_name = ctk.CTkLabel(table_frame, text=info[0], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            file_name.grid(row=i + 1, column=0, sticky='w',pady=10)
 
-            song_label = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=5)
-            song_label.grid(row=i + 1, column=1, sticky='w')
+            song_label = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            song_label.grid(row=i + 1, column=1, sticky='w',pady=10)
 
-            artist_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=5)
-            artist_label.grid(row=i + 1, column=2, sticky='w')
+            artist_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            artist_label.grid(row=i + 1, column=2, sticky='w',pady=10)
 
-            genre_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=5)
-            genre_label.grid(row=i + 1, column=3, sticky='w')
+            genre_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            genre_label.grid(row=i + 1, column=3, sticky='w',pady=10)
 
-            size_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=5)
-            size_label.grid(row=i + 1, column=4, sticky='w')
+            size_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            size_label.grid(row=i + 1, column=4, sticky='w',pady=10)
 
-            username_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=5)
-            username_label.grid(row=i + 1, column=5, sticky='w')
+            username_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            username_label.grid(row=i + 1, column=5, sticky='w',pady=10)
 
-            available_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=5)
-            available_label.grid(row=i + 1, column=6, sticky='w')
+            available_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            available_label.grid(row=i + 1, column=6, sticky='w',pady=10)
             if info[6] == 'True':
                 print('download is available')
                 download_button = ctk.CTkButton(table_frame, command=lambda f=info[0]: self.master.get_file(f),
                                                 text='Download!', font=(FONT, 14))
             else:
                 download_button = ctk.CTkButton(table_frame, text='Unavailable', font=(FONT, 14))
-            download_button.grid(row=i + 1, column=7, sticky='w')
+            download_button.grid(row=i + 1, column=7, sticky='w',pady=10)
 
             i += 1
 
@@ -537,7 +562,7 @@ class Signup(ctk.CTkFrame):
         self.cli_s = master.cli_s
 
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        title_label = ctk.CTkLabel(self, text='Sign Up', font=(FONT, 18), text_color='#6DC868')
+        title_label = ctk.CTkLabel(self, text='Sign Up', font=(FONT, 18))
         title_label.pack(pady=10)
 
         username_label = ctk.CTkLabel(self, text='Username:', font=(FONT, 12))
@@ -554,13 +579,30 @@ class Signup(ctk.CTkFrame):
 
         login_button = ctk.CTkButton(self, text='signup', font=(FONT, 12), command=self.signup_user)
         login_button.pack(pady=10)
-
+    def valid_pass(self,password):
+        if len(password) < 8:
+            return False
+        if not any(char.isupper() for char in password):
+            return False
+        if not any(char.islower() for char in password):
+            return False
+        if not any(char.isdigit() for char in password):
+            return False
+        if any(char in "~-.:%" for char in password):
+            return False
+        return True
     def signup_user(self):
         global USERNAME, LOGGED
         while not self.signed:
             self.username = self.username_entry.get()
             password = self.password_entry.get()
-
+            """if not self.valid_pass(password):
+                tk.messagebox.showerror('Error',
+                                        'The Password you have submitted is invalid. Password must follow these guidelines:'
+                                        '\n• Must contain at least 8 chars'
+                                        '\n• Must contain 1 uppercase letter, 1 lower case letter and 1 digit'
+                                        '\n• Password cannot contain the following chars: ~-.:%')
+                return"""
             to_send = f'SIGNUP|{self.username}|{password}'
             send_with_size(self.cli_s, to_send)
             result = recv_by_size(self.cli_s)
@@ -601,32 +643,62 @@ class Login(ctk.CTkFrame):
         self.password_entry = ctk.CTkEntry(self, show='*', font=(FONT, 12))
         self.password_entry.pack(pady=5)
 
-        login_button = ctk.CTkButton(self, text='Login', font=(FONT, 12), command=self.login_user,
-                                     fg_color='#6DC868')
+        login_button = ctk.CTkButton(self, text='Login', font=(FONT, 12), command=self.login_user)
         login_button.pack(pady=10)
+    def valid_pass(self,password):
+        if len(password) < 8:
+            return False
+        if not any(char.isupper() for char in password):
+            return False
+        if not any(char.islower() for char in password):
+            return False
+        if not any(char.isdigit() for char in password):
+            return False
+        if any(char in "~-.:%" for char in password):
+            return False
+        return True
 
     def login_user(self):
         global LOGGED, USERNAME
         while not self.logged:
-            self.username = self.username_entry.get()
-            password = self.password_entry.get()
-            to_send = f"LOGINC|{self.username}|{password}"
-            send_with_size(self.cli_s, to_send)
+            try:
+                self.username = self.username_entry.get()
+                password = self.password_entry.get()
+                """if not self.valid_pass(password):
+                    tk.messagebox.showerror('Error',
+                                            'The Password you have submitted is invalid. Password must follow these guidelines:'
+                                            '\n• Must contain at least 8 chars'
+                                            '\n• Must contain 1 uppercase letter, 1 lower case letter and 1 digit'
+                                            '\n• Password cannot contain the following chars: ~-.:%')
+                    return"""
+                to_send = f"LOGINC|{self.username}|{password}"
+                send_with_size(self.cli_s, to_send)
+                # Receive authentication result from server
+                auth_result = recv_by_size(self.cli_s)
+                if auth_result[-2:] == 'OK':
+                    self.logged = True
+                    USERNAME = self.username
+                    LOGGED = True
+                    print('logging in')
+                elif auth_result == "GOODBY":
+                    tk.messagebox.showerror('Error', 'Exceeded maximum tries. Please try to log in later')
+                    self.destroy()
+                    break
+                else:
+                    tk.messagebox.showerror('Error', 'invalid username or password!')
+                    return
+            except Exception as e:
+                exception_handler = ExceptionHandler(self.master)
+                exception_handler.handle_general_error(e)
+            except socket.error as socket_e:
+                exception_handler = ExceptionHandler(self.master)
+                exception_handler.handle_socket_error(socket_e)
+            except ctk.CTkException as ctk_e:
+                exception_handler = ExceptionHandler(self.master)
+                exception_handler.handle_tkinter_error(ctk_e)
 
-            # Receive authentication result from server
-            auth_result = recv_by_size(self.cli_s)
-            if auth_result[-2:] == 'OK':
-                self.logged = True
-                USERNAME = self.username
-                LOGGED = True
-                print('logging in')
-            elif auth_result == "GOODBY":
-                tk.messagebox.showerror('Error', 'Exceeded maximum tries. Please try to log in later')
-                self.destroy()
-                break
-            else:
-                tk.messagebox.showerror('Error', 'invalid username or password!')
-                return
+
+
         if not self.logged:
             self.username = ''
         else:
@@ -634,6 +706,34 @@ class Login(ctk.CTkFrame):
             logging_label.pack(pady=5)
             self.master.switch_frame(LocalFiles)
 
+
+class ExceptionHandler:
+    def __init__(self, root):
+        self.root = root
+
+    def handle_socket_error(self, exception):
+        # Handle socket errors here
+        print(f"Socket error: {exception}")
+        tk.messagebox.showerror('Socket Error',exception[:20])
+        self.close_all_windows()
+
+    def handle_general_error(self, exception):
+        # Handle general errors here
+        print(f"General error: {exception}")
+        tk.messagebox.showerror('General Error', exception[:20])
+        self.close_all_windows()
+
+    def handle_tkinter_error(self, exception):
+        # Handle tkinter errors here
+        print(f"Tkinter error: {exception}")
+        tk.messagebox.showerror('Graphics Error', exception[:20])
+        self.close_all_windows()
+
+    def close_all_windows(self):
+        # Close all windows and exit the application
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        self.root.quit()
 
 def udp_log(side, message):
     with open("udp_" + side + "_log.txt", 'a') as log:
@@ -878,6 +978,10 @@ def move_old_to_file(f_data, last, max, keep):
 
 
 def on_closing(app):
+
+        # Destroy all child frames
+    for child in app.winfo_children():
+        child.destroy()
     if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
         app.destroy()
         app.quit()
@@ -894,8 +998,13 @@ def main(cli_path, server_ip):
     context.verify_mode = ssl.CERT_NONE
     # create a socket and connect to the server
     cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
-    app = App(cli_s, cli_path)
-    app.mainloop()
+    app = App(cli_s,cli_path)
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
+    try:
+        app.mainloop()
+    except tk.TclError as e:
+        if "can't invoke" in str(e):
+            pass  # ignore the error since the root window has already been destroyed
 
     print('goodbye')
 
