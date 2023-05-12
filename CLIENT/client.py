@@ -300,7 +300,7 @@ class ShowLibrary(ctk.CTkFrame):
             self.toplevel_window.focus()  # if window exists focus it
 
 
-class (ctk.CTkToplevel):
+class SongWindow(ctk.CTkToplevel):
     def __init__(self, master, file, song_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.master = master
