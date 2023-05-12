@@ -295,12 +295,12 @@ class ShowLibrary(ctk.CTkFrame):
 
     def open_toplevel(self, fullname, song_name):
         if self.toplevel_window is None or not self.toplevel_window.winfo_exists():
-            self.toplevel_window = ToplevelWindow(self, fullname, song_name)  # create window if its None or destroyed
+            self.toplevel_window = SongWindow(self, fullname, song_name)  # create window if its None or destroyed
         else:
             self.toplevel_window.focus()  # if window exists focus it
 
 
-class ToplevelWindow(ctk.CTkToplevel):
+class (ctk.CTkToplevel):
     def __init__(self, master, file, song_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.master = master
