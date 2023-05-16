@@ -157,9 +157,9 @@ def do_action(data, cli_ip):
                 answer += ''
             else:
                 for song in songs:
-                    is_available = users_database.is_available(song.file_name,fields[1])
-                    username = songs_database.get_user_by_song(song.file_name)
-                    answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
+                    is_available = users_database.is_available(song.md5,fields[1])
+                    username = songs_database.get_user_by_song(song.md5)
+                    answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}~{song.md5}"
             to_send = answer
 
         elif action == "UPLOAD":
@@ -169,11 +169,11 @@ def do_action(data, cli_ip):
             to_send = "UPLDBK" + "|OK"
 
         elif action == "LINKFN":
-            fn = fields[0]
-            exists = songs_database.song_exists(fn)
+            md5 = fields[0]
+            exists = songs_database.song_exists(md5)
             # print('THIS SONG EXISTS', exists)
             if exists:
-                song = songs_database.get_song_by_file(fn)[0]
+                song = songs_database.get_song_by_md5(md5)[0]
 
                 token_obj = create_token()
                 token_lock.acquire()
@@ -182,7 +182,7 @@ def do_action(data, cli_ip):
                 else:
                     current_tokens[song.ip] = token_obj
                 token_lock.release()
-                to_send = f'LINKBK|{fn}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|{song.artist}|{song.genre}' # file name, ip, size
+                to_send = f'LINKBK|{fn}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|{song.artist}|{song.genre}|{song.md5}' # file name, ip, size
             else:
                 to_send = "Err___R|File not exist in srv list"
 

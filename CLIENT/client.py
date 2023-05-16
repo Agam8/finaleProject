@@ -9,7 +9,7 @@ import ssl
 import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
-from sqlCommands import Song
+from objects import Song
 import customtkinter as ctk
 import tkinter as tk
 from PIL import Image
@@ -77,7 +77,7 @@ class MainApp(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, local_files, exit_all))
+        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, exit_all))
         self.udp_srv.start()
         time.sleep(0.3)
         self.recv_thread = threading.Thread(target=self.recv_thread_func)
@@ -124,7 +124,7 @@ class MainApp(ctk.CTkFrame):
             if self.search_label is not None:
                 self.search_label.configure(text='')
                 self.search_label.pack()
-            self.search_results = SearchResult(self, fields)
+            self.search_results = SearchResult(self, fields,self.cli_s)
 
         elif action == "UPLDBK":
             print("Share status: " + fields[0])
@@ -140,14 +140,14 @@ class MainApp(ctk.CTkFrame):
             song_name = fields[4]
             artist = fields[5]
             genre = fields[6]
-
+            md5 = fields[7]
             time.sleep(0.5)
             udp_cli = threading.Thread(target=udp_client,
-                                       args=(CLI_PATH, fip, fname, fsize, ftoken, song_name, artist, genre))
+                                       args=(CLI_PATH, fip, fname, fsize, ftoken, song_name, artist, genre,md5))
             udp_cli.start()
             print("Run udp client to download the file " + fname + " from " + fip)
             udp_cli.join()
-            if fname in local_files.keys():
+            if md5 in local_files.keys():
                 tk.messagebox.showinfo('Download Status', f'{fname} downloaded succesfully from {fip}')
             else:
                 tk.messagebox.showerror('Download Status', f"{fname} couldn't be downloaded. Please Try again later")
@@ -215,7 +215,7 @@ class MainApp(ctk.CTkFrame):
     def share_files(self):
         to_send = "UPLOAD|" + str(len(local_files))
         for file, song in local_files.items():
-            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
+            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}~{song.md5}"
         send_with_size(self.cli_s, to_send)
 
     def manu(self):
@@ -268,11 +268,7 @@ class ShowLibrary(ctk.CTkFrame):
         for i, header in enumerate(headers):
             header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
-        i = 0
-        song_id = {}
-        for song in local_files.values():
-            song_id[i] = song
-            i += 1
+
         i = 0
         for song in local_files.values():
             file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=(FONT, 14), padx=10, pady=5)
@@ -451,11 +447,12 @@ class LocalFiles(ctk.CTkFrame):
 
     def save_song_info(self, file_name, song_name, artist, genre):
         global local_files, SAVED_FILES
-        if file_name not in local_files.keys() and song_name != '' and artist != '' and genre != '':
+        md5 = hashlib.md5(open(file_name, 'rb').read()).hexdigest()
+        if md5 not in local_files.keys() and song_name != '' and artist != '' and genre != '':
             if "'" in song_name or "'" in artist or "'" in genre:
                 tk.messagebox.showwarning('Warning',"The song information contains non valid chars and cannot be saved")
                 return
-            local_files[file_name] = Song(file_name, song_name, artist, genre, USERNAME,
+            local_files[md5] = Song(file_name, song_name, artist, genre, USERNAME, md5,
                                           size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
             saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=(FONT, 12), padx=10, pady=5)
             saved_label.pack(pady=10)
@@ -465,15 +462,15 @@ class LocalFiles(ctk.CTkFrame):
 
     def continue_to_main(self):
         if len(local_files) == len(self.files_list):
-            SAVED_FILES = True
             self.master.switch_frame(MainApp)
         else:
             tk.messagebox.showerror('Error', 'Please fill out all spaces before continue')
 
 
 class SearchResult(ctk.CTkScrollableFrame):
-    def __init__(self, master, fields):
+    def __init__(self, master, fields,cli_s):
         self.master = master
+        self.cli_s=cli_s
         ctk.CTkScrollableFrame.__init__(self, master)
         self.update_idletasks()
         self.place(anchor='center', relx=0.5, rely=0.8, relheight=0.95, relwidth=0.95)
@@ -500,6 +497,7 @@ class SearchResult(ctk.CTkScrollableFrame):
         i = 1
         for f in fields:
             info = f.split("~")
+            md5=info[7]
             file_name = ctk.CTkLabel(table_frame, text=info[0], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             file_name.grid(row=i + 1, column=0, sticky='w',pady=10)
 
@@ -518,17 +516,22 @@ class SearchResult(ctk.CTkScrollableFrame):
             username_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             username_label.grid(row=i + 1, column=5, sticky='w',pady=10)
 
-            available_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            available_label.grid(row=i + 1, column=6, sticky='w',pady=10)
+            """available_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            available_label.grid(row=i + 1, column=6, sticky='w',pady=10)"""
+
             if info[6] == 'True':
                 print('download is available')
-                download_button = ctk.CTkButton(table_frame, command=lambda f=info[0]: self.master.get_file(f),
+                download_button = ctk.CTkButton(table_frame, command=lambda f=md5: self.get_file(f),
                                                 text='Download!', font=(FONT, 14))
             else:
                 download_button = ctk.CTkButton(table_frame, text='Unavailable', font=(FONT, 14))
-            download_button.grid(row=i + 1, column=7, sticky='w',pady=10)
+            download_button.grid(row=i + 1, column=6, sticky='w',pady=10)
 
             i += 1
+
+    def get_file(self, md5):
+        to_send = "LINKFN|" + md5
+        send_with_size(self.cli_s, to_send)
 
 
 class LoginOrSignUp(ctk.CTkFrame):
@@ -757,10 +760,11 @@ def check_valid_token(token):
     return False
 
 
-def udp_server(cli_path, local_files, exit_all):
+def udp_server(cli_path, exit_all):
     """
     will get file request and will send Binary file data
     """
+    global local_files
 
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     bind_ok = False
@@ -786,13 +790,13 @@ def udp_server(cli_path, local_files, exit_all):
             if data[:3] == "FRQ":
                 # print('got request')
                 fields = data[4:].split("|")
-                fn = fields[0]
+                md5 = fields[0]
                 fsize = int(fields[1])
                 ftoken = fields[2]
                 print(fn, fsize, ftoken)
                 if check_valid_token(ftoken):
-                    if fn in local_files.keys():
-                        if local_files[fn].size == fsize and fsize > 0:
+                    if md5 in local_files.keys():
+                        if local_files[md5].size == fsize and fsize > 0:
                             fullname = os.path.join(cli_path, fn)
                             udp_file_send(udp_sock, fullname, fsize, addr)
                             time.sleep(5)
@@ -850,7 +854,7 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
         udp_log("server", "End of send udp file")
 
 
-def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre):
+def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre,md5):
     """
     will send file request and then will recv Binary data
     """
@@ -861,7 +865,7 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre):
     udp_sock.settimeout(10)
     send_ok = False
 
-    to_send = "FRQ|" + fn + "|" + str(size) + "|" + token
+    to_send = "FRQ|" + md5 + "|" + str(size) + "|" + token
     try:
         udp_sock.sendto(to_send.encode(), addr)
         send_ok = True
@@ -879,7 +883,7 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre):
     if send_ok and size > 0:
         saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
         if saved:
-            local_files[fn] = Song(fn, song_name, artist, genre, USERNAME, size=size)
+            local_files[md5] = Song(fn, song_name, artist, genre, USERNAME, md5,size=size)
 
     else:
         if DEBUG:

@@ -2,20 +2,7 @@ __author__ = 'Agam'
 
 import sqlite3
 import hashlib
-import os
-
-
-class User(object):
-    def __init__(self, id, username, password, current_ip, is_logged):
-        self.id = id
-        self.username = username
-        self.password = password
-        self.current_ip = current_ip
-        self.is_logged = is_logged
-
-    def __str__(self):
-        return f'{self.username}~***~{self.current_ip}~{self.is_logged}'
-
+from objects import User, Song
 
 class UserORM():
     def __init__(self, db_file):
@@ -182,10 +169,10 @@ class UserORM():
         self.close_DB()
         return user
 
-    def is_available(self, file_name,req_user):
+    def is_available(self, md5,req_user):
         self.open_DB()
         user = None
-        sql = f"SELECT * FROM songs WHERE file_name=='{file_name}';"
+        sql = f"SELECT * FROM songs WHERE md5=='{md5}';"
         res = self.cursor.execute(sql)
         row = res.fetchone()
         if row is not None:
@@ -204,25 +191,6 @@ class UserORM():
         else:
             self.close_DB()
             return False
-
-class Song(object):
-    def __init__(self, file_name, song_name, artist, genre, committed_user, ip='', size=''):
-        self.file_name = file_name
-        self.song_name = song_name
-        self.artist = artist
-        self.genre = genre
-        self.ip = ip
-        self.size = size
-        self.committed_user = committed_user
-
-    def __str__(self):
-        return f'\n\tfile name: {self.file_name}' \
-               f'\n\tsong name: {self.song_name}' \
-               f'\n\tartist: {self.artist}' \
-               f'\n\tgenre: {self.genre}' \
-               f'\n\tcommitted user: {self.committed_user}' \
-               f'\n\tip: {self.ip}\n\tsize: {self.size}'
-
 
 class SongsORM():
     def __init__(self, db_file):
@@ -246,9 +214,9 @@ class SongsORM():
         try:
             self.cursor.execute("""
                 INSERT INTO songs (
-                    file_name, song_name, artist, genre, committed_user, ip, size
+                    file_name, song_name, artist, genre, committed_user, ip, size, md5
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (song.file_name, song.song_name, song.artist, song.genre, song.committed_user, song.ip, song.size))
+            """, (song.file_name, song.song_name, song.artist, song.genre, song.committed_user, song.ip, song.size,song.md5))
             self.commit()
             self.close_DB()
             return True
@@ -271,18 +239,18 @@ class SongsORM():
         self.close_DB()
         return [Song(*row) for row in rows]
 
-    def get_song_by_file(self, file_name):
+    def get_song_by_md5(self, md5):
         self.open_DB()
-        self.cursor.execute(f"SELECT * FROM songs WHERE file_name == '{file_name}';")
+        self.cursor.execute(f"SELECT * FROM songs WHERE md5 == '{md5}';")
         rows = self.cursor.fetchall()
         self.close_DB()
         return [Song(*row) for row in rows]
 
-    def song_exists(self, file_name):
+    def song_exists(self, md5):
         self.open_DB()
         sql = "SELECT * " \
               "FROM Songs " \
-              f"WHERE file_name == '{file_name}';"
+              f"WHERE md5 == '{md5}';"
 
         # print('executing:',sql)
         res = self.cursor.execute(sql)
@@ -305,13 +273,13 @@ class SongsORM():
             for i in range(length):
                 # print("splitting by ~")
                 info = fields[i + 1].split(
-                    "~")  # info[0]: file name, info[1]: song name, info[2]: artist, info[3]: genre, info[4]: username, info[5]: size
+                    "~")  # info[0]: file name, info[1]: song name, info[2]: artist, info[3]: genre, info[4]: username, info[5]: size, info[6]: md5
                 print('song ', i + 1, ':', info)
 
-                exists = self.song_exists(info[0])
+                exists = self.song_exists(info[6])
                 print(info[0], " exsits: ", exists)
                 if not exists:
-                    new_song = Song(info[0], info[1], info[2], info[3], info[4], cli_ip, info[5])
+                    new_song = Song(info[0], info[1], info[2], info[3], info[4], info[6], cli_ip, info[5])
                     self.add_song(new_song)
                     print("got new file" + str(new_song))
                 else:
@@ -319,19 +287,6 @@ class SongsORM():
         except Exception as e:
             print("adding client's folder through exception: ", e)
         print("Len of files " + str(self.count_songs()))
-
-    def add_server_folder(self, srv_path):
-        for f in os.listdir(srv_path):
-            full_name = os.path.join(srv_path, f)
-            print("f " + full_name + " " + str(os.path.isfile(full_name)))
-            if os.path.isfile(full_name) and f.endswith(".mp3"):
-                exists = self.song_exists(full_name)
-                if not exists:
-                    new_song = Song(full_name, 'unknown', 'unknown', 'unknown', '0.0.0.0',
-                                    str(os.path.getsize(full_name)))
-                    self.add_song(new_song)
-                else:
-                    print(f, 'already exists')
 
     def search_songs(self, keyword):
         self.open_DB()
@@ -358,17 +313,14 @@ class SongsORM():
         self.close_DB()
         return songs
 
-    def get_user_by_song(self,file_name):
+    def get_user_by_song(self,md5):
         self.open_DB()
         user = ''
-        sql = f"SELECT committed_user FROM songs WHERE file_name == '{file_name}'"
+        sql = f"SELECT committed_user FROM songs WHERE md5 == '{md5}'"
         res = self.cursor.execute(sql)
         user = res.fetchone()[0].strip("'")
         self.close_DB()
         return user
-
-
-
 
 
 def main():

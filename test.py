@@ -63,7 +63,8 @@ for song in local_files.values():
     print(song)
     print(i, song.file_name, song.song_name,song.artist,song.genre,song.committed_user)
     i+=1"""
-from youtubesearchpython import VideosSearch
+#from youtubesearchpython import VideosSearch
+
 # import youtube_dl
 # import pytube as pt
 """def download_pytube(video_url):
@@ -93,13 +94,13 @@ song_url = videosSearch.result()['result'][0]['link']
 # download_ytvid_as_mp3(str(song_url))
 download_pytube(song_url)
 """
-from selenium import webdriver
+"""from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from pydub import AudioSegment
 import tempfile
-import time
+import time"""
 
 
 
@@ -175,4 +176,8 @@ def main(client_path):
 def action(**kwargs):
     song_name=kwargs['song_name']
     print(song_name)
-action(song_name='hello')
+import hashlib
+def create_md5(filename):
+    return hashlib.md5(open(filename,'rb').read()).hexdigest()
+
+print(create_md5('graphics.py'))
