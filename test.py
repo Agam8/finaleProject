@@ -180,4 +180,4 @@ import hashlib
 def create_md5(filename):
     return hashlib.md5(open(filename,'rb').read()).hexdigest()
 
-print(create_md5('graphics.py'))
+print(create_md5(r'CLIENT\client_songs\אריאל זילבר ⧸⧸ שמש שמש.wav'))

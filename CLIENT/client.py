@@ -1,6 +1,5 @@
 __author__ = 'Agam'
 
-import customtkinter
 import datetime
 import sys
 import socket, time
@@ -208,8 +207,8 @@ class MainApp(ctk.CTkFrame):
         to_send = "SEARCH|" + keyword + '|' + USERNAME
         send_with_size(self.cli_s, to_send)
 
-    def get_file(self, file_name):
-        to_send = "LINKFN|" + file_name
+    def get_file(self, md5):
+        to_send = "LINKFN|" + md5
         send_with_size(self.cli_s, to_send)
 
     def share_files(self):
@@ -264,29 +263,26 @@ class ShowLibrary(ctk.CTkFrame):
         table_frame.pack(pady=10)
 
         # Create the headers for the table
-        headers = ['File Name', 'Song', 'Artist', 'Genre', 'Play']
+        headers = ['Song', 'Artist', 'Genre', 'Play']
         for i, header in enumerate(headers):
             header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
 
         i = 0
         for song in local_files.values():
-            file_name = ctk.CTkLabel(table_frame, text=song.file_name, font=(FONT, 14), padx=10, pady=5)
-            file_name.grid(row=i + 1, column=0, sticky='w')
-
             song_label = ctk.CTkLabel(table_frame, text=song.song_name, font=(FONT, 14), padx=10, pady=5)
-            song_label.grid(row=i + 1, column=1, sticky='w')
+            song_label.grid(row=i + 1, column=0, sticky='w')
 
             artist_label = ctk.CTkLabel(table_frame, text=song.artist, font=(FONT, 14), padx=10, pady=5)
-            artist_label.grid(row=i + 1, column=2, sticky='w')
+            artist_label.grid(row=i + 1, column=1, sticky='w')
 
             genre_label = ctk.CTkLabel(table_frame, text=song.genre, font=(FONT, 14), padx=10, pady=5)
-            genre_label.grid(row=i + 1, column=3, sticky='w')
+            genre_label.grid(row=i + 1, column=2, sticky='w')
 
             play_button = ctk.CTkButton(table_frame, command=lambda fullname=os.path.join(CLI_PATH, song.file_name),
                                                                     song_name=song.song_name:
             self.open_toplevel(fullname, song_name), text=f'Play')
-            play_button.grid(row=i + 1, column=7, sticky='w')
+            play_button.grid(row=i + 1, column=3, sticky='w')
             i += 1
 
     def open_toplevel(self, fullname, song_name):
@@ -306,14 +302,17 @@ class SongWindow(ctk.CTkToplevel):
 
         self.label = ctk.CTkLabel(self, text=f"Playing {self.song_name}", font=(FONT, 14))
         self.label.pack(padx=20, pady=20)
-        self.current_lbl = ctk.CTkLabel(self, text="0/0", font=(FONT, 14))
+        self.current_lbl = ctk.CTkLabel(self, text="00:00/00:00", font=(FONT, 14))
         self.current_lbl.pack()
+        table_frame=ctk.CTkFrame(self)
+        table_frame.pack(pady=2)
+        pause_image = ctk.CTkImage(Image.open('pause_button.png'), size=(75, 90))
+        self.pause_btn = ctk.CTkButton(table_frame, command=self.pause, font=(FONT, 14),image=pause_image)
+        self.pause_btn.grid(row=0, column=0, sticky='w')
+        play_image = ctk.CTkImage(Image.open('play_button.png'), size=(75, 90))
+        self.play_btn = ctk.CTkButton(table_frame, command=self.play, font=(FONT, 14),image=play_image)
+        self.play_btn.grid(row=0, column=1, sticky='w')
 
-        self.pause_btn = ctk.CTkButton(self, text="Pause", command=self.pause, font=(FONT, 14))
-        self.pause_btn.pack()
-
-        self.play_btn = ctk.CTkButton(self, text="Play", command=self.play, font=(FONT, 14))
-        self.play_btn.pack()
         self.play_bar = ctk.CTkProgressBar(self)
         self.play_bar.set(0)
         self.play_bar.pack(pady=2)
@@ -381,7 +380,9 @@ class SongWindow(ctk.CTkToplevel):
         self.after_id = None
 
     def update_lbl(self):
-        self.current_lbl.configure(text=f"{'%.1f' % self.current_sec}/{'%.1f' % self.audio_length}")
+        self.current_lbl.configure(text=f"{int(self.current_sec // 60):02d}:{int(self.current_sec % 60):02d}/"
+                                        f"{int(self.audio_length // 60):02d}:{int(self.audio_length % 60):02d}")
+
         self.after_id = self.current_lbl.after(5, self.update_lbl)
         if self.audio_length != 0:
             current_progress = self.current_sec / self.audio_length
@@ -447,7 +448,7 @@ class LocalFiles(ctk.CTkFrame):
 
     def save_song_info(self, file_name, song_name, artist, genre):
         global local_files, SAVED_FILES
-        md5 = hashlib.md5(open(file_name, 'rb').read()).hexdigest()
+        md5 = hashlib.md5(open(os.path.join(CLI_PATH, file_name), 'rb').read()).hexdigest()
         if md5 not in local_files.keys() and song_name != '' and artist != '' and genre != '':
             if "'" in song_name or "'" in artist or "'" in genre:
                 tk.messagebox.showwarning('Warning',"The song information contains non valid chars and cannot be saved")
@@ -882,8 +883,13 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre,md5):
 
     if send_ok and size > 0:
         saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
+
         if saved:
-            local_files[md5] = Song(fn, song_name, artist, genre, USERNAME, md5,size=size)
+            check_md5 = hashlib.md5(open(fn, 'rb').read()).hexdigest()
+            if check_md5 == md5:
+                local_files[md5] = Song(fn, song_name, artist, genre, USERNAME, md5,size=size)
+            else:
+                print('md5 of filw is wrong',check_md5, md5)
 
     else:
         if DEBUG:

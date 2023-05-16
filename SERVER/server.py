@@ -69,6 +69,7 @@ def handle_token(cli_ip,sock):
             to_send = do_action(data, cli_ip)
             send_with_size(sock, to_send)
 
+
 def handle_client(sock, tid, cli_ip):
     global exit_all
     if exit_all:
