@@ -68,6 +68,10 @@ def handle_token(cli_ip,sock):
             data = "SENDTK"
             to_send = do_action(data, cli_ip)
             send_with_size(sock, to_send)
+            recv = recv_by_size(sock)
+            to_send = do_action(recv,cli_ip)
+
+
 
 
 def handle_client(sock, tid, cli_ip):
@@ -129,7 +133,6 @@ def do_action(data, cli_ip):
     to_send = "Not Set Yet"
 
     try:
-
         action = data[:6]
         data = data[7:]
         fields = data.split('|')
@@ -149,7 +152,8 @@ def do_action(data, cli_ip):
             username = fields[0]
             password = fields[1]
             valid, msg = users_database.signup(username,password,cli_ip)
-            to_send = 'SIGNED' + "|"+msg
+            to_send = 'SIGNED' + "|" + msg
+
         elif action == "SEARCH":
             answer = 'SRCHBK'
             print('getting songs')
@@ -175,34 +179,56 @@ def do_action(data, cli_ip):
             # print('THIS SONG EXISTS', exists)
             if exists:
                 song = songs_database.get_song_by_md5(md5)[0]
-
                 token_obj = create_token()
-                token_lock.acquire()
                 if song.ip == SERVER_IP:
-                    current_tokens['127.0.0.1'] = token_obj
+                    ip = '127.0.0.1'
                 else:
-                    current_tokens[song.ip] = token_obj
+                    ip = song.ip
+                token_lock.acquire()
+                current_tokens[ip] = token_obj
                 token_lock.release()
-                to_send = f'LINKBK|{fn}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|{song.artist}|{song.genre}|{song.md5}' # file name, ip, size
+                while not current_tokens[ip].is_ack():
+                    time.sleep(0.01)
+                to_send = f'LINKBK|{song.file_name}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|{song.artist}|{song.genre}|{song.md5}' # file name, ip, size
+                token_lock.acquire()
+                del current_tokens[ip]
+                token_lock.release()
             else:
-                to_send = "Err___R|File not exist in srv list"
+                to_send = handle_error(4)
 
         elif action == 'SENDTK':
             token = current_tokens[cli_ip]
             token_lock.acquire()
-            del current_tokens[cli_ip]
+            current_tokens[cli_ip].set_ack()
             token_lock.release()
             to_send = f'SENDTK|{token.token}|{token.start_time}'
+
+        elif action == 'TOKACK':
+            token_lock.acquire()
+            current_tokens[cli_ip].set_ack()
+            token_lock.release
+            to_send = 'got token'
 
         elif action == "RULIVE":
             to_send = 'AMLIVE' + "|Server Is Live"
         else:
             print("Got unknown action from client " + action)
-            to_send = "ERR___R|001|" + "unknown action"
+            to_send = handle_error(2)
     except Exception as e:
-        to_send = "Err___R|do Action General exception "
+        to_send = handle_error(1)
     return to_send
 
+def handle_error(error_num):
+    to_send = "ERRORS|"
+    if error_num == 1:
+        to_send += "001|General Exception"
+    elif error_num == 2:
+        to_send += "002|Unknown Action"
+    elif error_num == 3:
+        to_send += "003|SSL Error"
+    elif error_num == 4:
+        to_send += "004|File Not Found"
+    return to_send
 
 def load_files_from_server_folder(srv_path):
     """

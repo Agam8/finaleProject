@@ -159,9 +159,12 @@ class MainApp(ctk.CTkFrame):
             print(token_dict)
             token_lock.release()
             print('added-- ', token, " --to dict")
+            self.send_token_ack()
 
         elif action == "AMLIVE":
             print("Server answer and Live")
+        elif action == "ERRORS":
+            tk.messagebox.showerror(f"Error {fields[0]}", fields[1])
         else:
             print("Unknown action back " + action)
 
@@ -216,6 +219,10 @@ class MainApp(ctk.CTkFrame):
         for file, song in local_files.items():
             to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}~{song.md5}"
         send_with_size(self.cli_s, to_send)
+
+    def send_token_ack(self):
+        to_send = "TOKACK"
+        send_with_size(self.cli_s,to_send)
 
     def manu(self):
         print("\n=============\n" +

@@ -32,7 +32,11 @@ class Token():
     def __init__(self, token, start_time):
         self.token = token
         self.start_time = start_time
-
+        self.ack=False
+    def is_ack(self):
+        return self.ack
+    def set_ack(self):
+        self.ack=True
 
     def __str__(self):
         return self.token+"~"+str(self.start_time)
