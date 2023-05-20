@@ -2,13 +2,13 @@ __author__ = 'Agam'
 
 import socket
 import ssl
-import queue, threading, time, datetime
+import threading, time, datetime
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 import secrets
 import string
 import sqlCommands
-from token_config import Token
+from objects import Token
 TCP_PORT=8888
 DEBUG = True
 exit_all = False
@@ -18,13 +18,23 @@ files_lock = threading.Lock()
 current_tokens = {}
 token_lock = threading.Lock()
 DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
-SERVER_IP = '10.0.0.26' #for testing
+SERVER_IP = ''
 
 def create_token():
+    """
+    creates a 16 chars string that is used for authentication between client's
+    :return: a token string
+    """
     secure_str = ''.join((secrets.choice(string.ascii_letters + string.digits) for i in range(16)))
     return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
 
 def login(client_socket,cli_ip):
+    """
+    handles the login/signup process
+    :param client_socket: the client's socket
+    :param cli_ip: the client's ip
+    :return: bool whether the user is logged and the username if they are logged
+    """
     tries = 5
     logged = False
     username=''
@@ -33,7 +43,7 @@ def login(client_socket,cli_ip):
     if data == "":
         print("Error: Seems Client DC")
         return False,''
-    while data[:3] == 'SGN':
+    while data[:6] == 'SIGNUP':
         if data == "":
             print("Error: Seems Client DC")
             return False, ''
@@ -60,6 +70,13 @@ def login(client_socket,cli_ip):
 
 
 def handle_token(cli_ip,sock):
+    """
+    the token's thread function that sends a token to the udp server (a tcp client)
+     when there is a request from another client
+    :param cli_ip: the client's ip
+    :param sock: the client's socket
+    :return: none
+    """
     while True:
         if exit_all:
             print("Seems Server DC")
@@ -72,9 +89,15 @@ def handle_token(cli_ip,sock):
             to_send = do_action(recv,cli_ip)
 
 
-
-
 def handle_client(sock, tid, cli_ip):
+    """
+    handles the main communication with the client.
+    Receives client's request and sends corrosponding answers
+    :param sock: the client's sock
+    :param tid: the thread id
+    :param cli_ip: the client's ip
+    :return: none
+    """
     global exit_all
     if exit_all:
         sock.close()
@@ -126,11 +149,14 @@ def handle_client(sock, tid, cli_ip):
 
 def do_action(data, cli_ip):
     """
-     what client ask and fill to send with the answer
+    gets the data from client and fills an answer to the client
+    :param data: the data recieved from client
+    :param cli_ip: the client's ip
+    :return: answer to client
     """
     global files_lock, current_tokens, token_lock
 
-    to_send = "Not Set Yet"
+    to_send = ''
 
     try:
         action = data[:6]
@@ -157,14 +183,18 @@ def do_action(data, cli_ip):
         elif action == "SEARCH":
             answer = 'SRCHBK'
             print('getting songs')
+            print('fields[0]:',fields[0])
+            print('fields[1]:',fields[1])
             songs = songs_database.search_songs(fields[0])
+            print(songs[0])
             if len(songs) == 0:
                 answer += ''
             else:
                 for song in songs:
                     is_available = users_database.is_available(song.md5,fields[1])
                     username = songs_database.get_user_by_song(song.md5)
-                    answer += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}~{song.md5}"
+                    print('username got:', username)
+                    answer += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
             to_send = answer
 
         elif action == "UPLOAD":
@@ -206,7 +236,7 @@ def do_action(data, cli_ip):
         elif action == 'TOKACK':
             token_lock.acquire()
             current_tokens[cli_ip].set_ack()
-            token_lock.release
+            token_lock.release()
             to_send = 'got token'
 
         elif action == "RULIVE":
@@ -215,10 +245,16 @@ def do_action(data, cli_ip):
             print("Got unknown action from client " + action)
             to_send = handle_error(2)
     except Exception as e:
+        print(e)
         to_send = handle_error(1)
     return to_send
 
 def handle_error(error_num):
+    """
+    gets an error code and returns the answer to client
+    :param error_num: the error code number
+    :return: error answer to client
+    """
     to_send = "ERRORS|"
     if error_num == 1:
         to_send += "001|General Exception"
@@ -230,17 +266,11 @@ def handle_error(error_num):
         to_send += "004|File Not Found"
     return to_send
 
-def load_files_from_server_folder(srv_path):
+def main():
     """
-
-    :param srv_path:
+    the main loop of the server. Opens a TCP socket handles the threading process of clients
     :return:
     """
-    global songs_database
-    songs_database.add_server_folder(srv_path)
-
-
-def main():
     global exit_all
     exit_all = False
     s = socket.socket()
@@ -263,11 +293,16 @@ def main():
     exit_all = True
     for s, t in clients.items():
         t.join()
-    # manager.join()
     users_database.logout_all()
 
     s.close()
 
 
 if __name__ == "__main__":
-    main()
+    if len(argv) == 2:
+        SERVER_IP = argv[1]
+        main()
+    else:
+        print("USAGE : <enter your IP>")
+        exit()
+

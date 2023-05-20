@@ -176,7 +176,8 @@ class UserORM():
         res = self.cursor.execute(sql)
         row = res.fetchone()
         if row is not None:
-            username = row[4]
+            username = row[5]
+            print(username)
             if req_user == username:
                 self.close_DB()
                 return False
@@ -214,9 +215,9 @@ class SongsORM():
         try:
             self.cursor.execute("""
                 INSERT INTO songs (
-                    file_name, song_name, artist, genre, committed_user, ip, size, md5
+                    md5, file_name, song_name, artist, genre, committed_user, ip, size
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (song.file_name, song.song_name, song.artist, song.genre, song.committed_user, song.ip, song.size,song.md5))
+            """, (song.md5, song.file_name, song.song_name, song.artist, song.genre, song.committed_user, song.ip, song.size))
             self.commit()
             self.close_DB()
             return True
@@ -271,19 +272,24 @@ class SongsORM():
         print("Got %d files" % length)
         try:
             for i in range(length):
-                # print("splitting by ~")
-                info = fields[i + 1].split(
-                    "~")  # info[0]: file name, info[1]: song name, info[2]: artist, info[3]: genre, info[4]: username, info[5]: size, info[6]: md5
+                # info[0]: md5,
+                # info[1]: file name,
+                # info[2]: song name,
+                # info[3]: artist,
+                # info[4]: genre,
+                # info[5]: username,
+                # info[6]: size
+                info = fields[i + 1].split("~")
                 print('song ', i + 1, ':', info)
 
-                exists = self.song_exists(info[6])
+                exists = self.song_exists(info[0])
                 print(info[0], " exsits: ", exists)
                 if not exists:
-                    new_song = Song(info[0], info[1], info[2], info[3], info[4], info[6], cli_ip, info[5])
+                    new_song = Song(info[0], info[1], info[2], info[3], info[4], info[5], cli_ip, info[6])
                     self.add_song(new_song)
                     print("got new file" + str(new_song))
                 else:
-                    print("file already exist " + info[0])
+                    print("file already exist " + info[1])
         except Exception as e:
             print("adding client's folder through exception: ", e)
         print("Len of files " + str(self.count_songs()))

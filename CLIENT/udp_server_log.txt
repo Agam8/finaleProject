@@ -37487,3 +37487,19 @@
 2023-05-16 19:42:18 - Go to listen
 2023-05-16 19:59:11 - Go to listen
 2023-05-16 20:01:22 - Go to listen
+2023-05-17 22:27:18 - Go to listen
+2023-05-17 22:38:43 - Go to listen
+2023-05-17 22:43:58 - Go to listen
+2023-05-20 14:58:53 - Go to listen
+2023-05-20 15:09:03 - Go to listen
+2023-05-20 15:23:52 - Go to listen
+2023-05-20 15:27:51 - Go to listen
+2023-05-20 15:29:47 -  Sock error:[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted
+2023-05-20 15:29:47 - Cant Bind  2 udp servers on same computer
+2023-05-20 15:29:47 - udp server off
+2023-05-20 15:35:24 - Go to listen
+2023-05-20 15:37:01 - Go to listen
+2023-05-20 19:07:18 - Go to listen
+2023-05-20 19:08:37 - Go to listen
+2023-05-20 19:09:51 - Go to listen
+2023-05-20 19:11:57 - Go to listen

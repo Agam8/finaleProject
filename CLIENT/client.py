@@ -63,10 +63,13 @@ class App(ctk.CTk):
         self.username = username
 
     def on_closing(self):
+        global exit_all
         if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
             for child in self.winfo_children():
                 child.destroy()
             self.destroy()
+            self.cli_s.close()
+            exit_all = True
 
 
 
@@ -87,19 +90,34 @@ class MainApp(ctk.CTkFrame):
         self.files_frame = None
         self.search_progress = ctk.CTkProgressBar(self)
         self.search_label = ctk.CTkLabel(self,text=f'')
-        self.loop()
+
+        self.share_files()
+        title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=(FONT, 24))
+        title_label.pack(pady=10)
+        self.search_entry = ctk.CTkEntry(self, font=(FONT, 14))
+        self.search_entry.pack(pady=5)
+
+        search_button = ctk.CTkButton(self, text='Search', command=self.search, font=(FONT, 14))
+        search_button.pack(pady=10)
+
+        my_dir_button = ctk.CTkButton(self, text='My Library', command=self.show_library, font=(FONT, 14))
+        my_dir_button.pack(pady=10)
+
+
+
 
     def recv_thread_func(self):
         global exit_all
         while True:
             data = recv_by_size(self.cli_s)
-            if data == "" or exit_all:
+            if exit_all:
+                break
+            if data == "":
                 print("seems server DC")
                 tk.messagebox.showerror('Error', 'Server Disconnected')
                 exit_all = True
-
                 break
-            if len(data) < 8:
+            if len(data) < 6:
                 print("seems bad message format:" + data)
                 break
             self.data_recv(data)
@@ -163,36 +181,12 @@ class MainApp(ctk.CTkFrame):
 
         elif action == "AMLIVE":
             print("Server answer and Live")
+
         elif action == "ERRORS":
             tk.messagebox.showerror(f"Error {fields[0]}", fields[1])
+
         else:
             print("Unknown action back " + action)
-
-    def loop(self):
-        global exit_all
-        self.share_files()
-        title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=(FONT, 24))
-        title_label.pack(pady=10)
-        self.search_entry = ctk.CTkEntry(self, font=(FONT, 14))
-        self.search_entry.pack(pady=5)
-
-        search_button = ctk.CTkButton(self, text='Search', command=self.search,font=(FONT,14))
-        search_button.pack(pady=10)
-
-        my_dir_button = ctk.CTkButton(self, text='My Library', command=self.show_library,font=(FONT,14))
-        my_dir_button.pack(pady=10)
-
-        while True:
-            data = self.manu()
-
-            if data == "q":
-                break
-            send_with_size(self.cli_s, data)
-
-        self.cli_s.close()
-        exit_all = True
-        self.udp_srv.join()
-        self.recv_thread.join()
 
     def show_library(self):
         if self.files_frame is not None:
@@ -217,7 +211,7 @@ class MainApp(ctk.CTkFrame):
     def share_files(self):
         to_send = "UPLOAD|" + str(len(local_files))
         for file, song in local_files.items():
-            to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}~{song.md5}"
+            to_send += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
         send_with_size(self.cli_s, to_send)
 
     def send_token_ack(self):
@@ -313,11 +307,11 @@ class SongWindow(ctk.CTkToplevel):
         self.current_lbl.pack()
         table_frame=ctk.CTkFrame(self)
         table_frame.pack(pady=2)
-        pause_image = ctk.CTkImage(Image.open('pause_button.png'), size=(75, 90))
-        self.pause_btn = ctk.CTkButton(table_frame, command=self.pause, font=(FONT, 14),image=pause_image)
+        pause_image = ctk.CTkImage(Image.open('pause_button_bg.png'), size=(75, 90))
+        self.pause_btn = ctk.CTkButton(table_frame, command=self.pause, font=(FONT, 14),image=pause_image,text='')
         self.pause_btn.grid(row=0, column=0, sticky='w')
-        play_image = ctk.CTkImage(Image.open('play_button.png'), size=(75, 90))
-        self.play_btn = ctk.CTkButton(table_frame, command=self.play, font=(FONT, 14),image=play_image)
+        play_image = ctk.CTkImage(Image.open('play_button_bg.png'), size=(75, 90))
+        self.play_btn = ctk.CTkButton(table_frame, command=self.play, font=(FONT, 14),image=play_image, text='')
         self.play_btn.grid(row=0, column=1, sticky='w')
 
         self.play_bar = ctk.CTkProgressBar(self)
@@ -460,7 +454,7 @@ class LocalFiles(ctk.CTkFrame):
             if "'" in song_name or "'" in artist or "'" in genre:
                 tk.messagebox.showwarning('Warning',"The song information contains non valid chars and cannot be saved")
                 return
-            local_files[md5] = Song(file_name, song_name, artist, genre, USERNAME, md5,
+            local_files[md5] = Song(md5, file_name, song_name, artist, genre, USERNAME,
                                           size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
             saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=(FONT, 12), padx=10, pady=5)
             saved_label.pack(pady=10)
@@ -491,12 +485,13 @@ class SearchResult(ctk.CTkScrollableFrame):
         table_frame.pack(pady=10)
 
         # Create the headers for the table
+        print('fields:',fields)
         if len(fields) == 0:
             empty_label = ctk.CTkLabel(table_frame, text=f"No search results")
             empty_label.pack(pady=10)
             return
 
-        headers = ['File Name', 'Song', 'Artist', 'Genre', 'Size', 'Username', 'Available', 'Download']
+        headers = ['File Name', 'Song', 'Artist', 'Genre', 'Size', 'Username', 'Download']
         for i, header in enumerate(headers):
             header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 14), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
@@ -505,29 +500,27 @@ class SearchResult(ctk.CTkScrollableFrame):
         i = 1
         for f in fields:
             info = f.split("~")
-            md5=info[7]
-            file_name = ctk.CTkLabel(table_frame, text=info[0], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            md5=info[0]
+            file_name = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             file_name.grid(row=i + 1, column=0, sticky='w',pady=10)
 
-            song_label = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            song_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             song_label.grid(row=i + 1, column=1, sticky='w',pady=10)
 
-            artist_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            artist_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             artist_label.grid(row=i + 1, column=2, sticky='w',pady=10)
 
-            genre_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            genre_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             genre_label.grid(row=i + 1, column=3, sticky='w',pady=10)
 
-            size_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            size_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             size_label.grid(row=i + 1, column=4, sticky='w',pady=10)
 
-            username_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+            username_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
             username_label.grid(row=i + 1, column=5, sticky='w',pady=10)
 
-            """available_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            available_label.grid(row=i + 1, column=6, sticky='w',pady=10)"""
 
-            if info[6] == 'True':
+            if info[7] == 'True':
                 print('download is available')
                 download_button = ctk.CTkButton(table_frame, command=lambda f=md5: self.get_file(f),
                                                 text='Download!', font=(FONT, 14))
@@ -801,7 +794,7 @@ def udp_server(cli_path, exit_all):
                 md5 = fields[0]
                 fsize = int(fields[1])
                 ftoken = fields[2]
-                print(fn, fsize, ftoken)
+                print(md5, fsize, ftoken)
                 if check_valid_token(ftoken):
                     if md5 in local_files.keys():
                         if local_files[md5].size == fsize and fsize > 0:
@@ -1024,6 +1017,7 @@ def main(cli_path, server_ip):
             pass  # ignore the error since the root window has already been destroyed
 
     print('goodbye')
+    exit()
 
 
 if __name__ == "__main__":
