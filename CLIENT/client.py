@@ -33,36 +33,41 @@ local_files = {}
 SAVED_FILES = False
 FONT = 'Yu Gothic UI'
 error_handler = None
+
 class App(ctk.CTk):
     def __init__(self, cli_s, cli_path):
+        """
+        initiating the main ctk.ctk screen
+        :param cli_s: client's socket
+        :param cli_path: client's path to local shared folder
+        """
         global CLI_PATH,error_handler
         ctk.CTk.__init__(self)
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme('green')
+        self.title('Agamusic')
         self.geometry('900x900')
         self._frame = None
         self.cli_s = cli_s
-        self.username = ''
         CLI_PATH = cli_path
         self.switch_frame(LoginOrSignUp)
 
     def switch_frame(self, frame_class):
+        """
+        destroys current frame and switches to a new frame
+        :param frame_class: a ctkFrame class
+        :return: none
+        """
         new_frame = frame_class(self)
         if self._frame is not None:
             self._frame.destroy()
         self._frame = new_frame
-        # print('switched to ', frame_class)
-
-    def get_cli_socket(self):
-        return self.cli_s
-
-    def get_username(self):
-        return self.username
-
-    def set_username(self, username):
-        self.username = username
 
     def on_closing(self):
+        """
+        handles prtocol when closing the ctk window
+        :return: none
+        """
         global exit_all
         if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
             for child in self.winfo_children():
@@ -72,9 +77,12 @@ class App(ctk.CTk):
             exit_all = True
 
 
-
 class MainApp(ctk.CTkFrame):
     def __init__(self, master):
+        """
+        initates the main screen of the platform
+        :param master: a ctk.CTk master class
+        """
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
@@ -103,10 +111,11 @@ class MainApp(ctk.CTkFrame):
         my_dir_button = ctk.CTkButton(self, text='My Library', command=self.show_library, font=(FONT, 14))
         my_dir_button.pack(pady=10)
 
-
-
-
     def recv_thread_func(self):
+        """
+        handles the messages from the server
+        :return: none
+        """
         global exit_all
         while True:
             data = recv_by_size(self.cli_s)
@@ -124,6 +133,11 @@ class MainApp(ctk.CTkFrame):
         return
 
     def data_recv(self, data):
+        """
+        gets the data from server and generates the response (to screen)
+        :param data: data received from server
+        :return: none
+        """
         global token_dict
         action = data[:6]
         fields = data[7:].split("|")
@@ -189,11 +203,19 @@ class MainApp(ctk.CTkFrame):
             print("Unknown action back " + action)
 
     def show_library(self):
+        """
+        calls ShowLibrary class when button is pressed
+        :return: none
+        """
         if self.files_frame is not None:
             self.files_frame.destroy()
         self.library = ShowLibrary(self)
 
     def search(self):
+        """
+        handles the search function when the user is searching for a song
+        :return: none
+        """
         keyword = self.search_entry.get()
         self.search_label.configure(text=f"searching for '{keyword}'...",font=(FONT,12))
         self.search_label.pack()
@@ -205,52 +227,39 @@ class MainApp(ctk.CTkFrame):
         send_with_size(self.cli_s, to_send)
 
     def get_file(self, md5):
+        """
+        handles the request to download song from client
+        :param md5: the req file's md5
+        :return: none
+        """
         to_send = "LINKFN|" + md5
         send_with_size(self.cli_s, to_send)
 
     def share_files(self):
+        """
+        handles the upload of shared files information
+        :return: none
+        """
         to_send = "UPLOAD|" + str(len(local_files))
         for file, song in local_files.items():
             to_send += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
         send_with_size(self.cli_s, to_send)
 
     def send_token_ack(self):
+        """
+        sends token acknowledgment to server when a token is recieved
+        :return: none
+        """
         to_send = "TOKACK"
         send_with_size(self.cli_s,to_send)
-
-    def manu(self):
-        print("\n=============\n" +
-              "1. SCH - show server file list\n" +
-              "2. SHR - share my files \n" +
-              "3. LNK - get file link \n" +
-              "4. PLY - play mp3 file\n\n"
-              "9. exit\n>" +
-              "=============\n\n")
-
-        data = input("Select number > ")
-
-        if data == "9":
-            return "q"
-
-        elif data == "2":
-            to_send = "SHR|" + str(len(local_files))
-            for file, song in local_files.items():
-                to_send += f"|{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
-            return to_send
-        elif data == "3":
-            fn = input("enter file name>")
-            return "LNK|" + fn
-        elif data == "4":
-            sn = input("enter song file name>")
-            # play_song(cli_path, sn)
-            return "RULIVE"
-
-        else:
-            return "RULIVE"
 
 
 class ShowLibrary(ctk.CTkFrame):
     def __init__(self, master):
+        """
+        initates the library frame
+        :param master: the master frame object
+        """
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.8, relheight=0.95, relwidth=0.95)
@@ -287,6 +296,12 @@ class ShowLibrary(ctk.CTkFrame):
             i += 1
 
     def open_toplevel(self, fullname, song_name):
+        """
+        opens a song play window when user presses the play button
+        :param fullname: the file's full path
+        :param song_name: the song's name
+        :return: none
+        """
         if self.toplevel_window is None or not self.toplevel_window.winfo_exists():
             self.toplevel_window = SongWindow(self, fullname, song_name)  # create window if its None or destroyed
         else:
@@ -295,11 +310,18 @@ class ShowLibrary(ctk.CTkFrame):
 
 class SongWindow(ctk.CTkToplevel):
     def __init__(self, master, file, song_name, *args, **kwargs):
+        """
+        initates the song's play window
+        :param master: the master frame object
+        :param file: file's path
+        :param song_name: the song's name
+        """
         super().__init__(*args, **kwargs)
         self.master = master
         self.file = file
         self.song_name = song_name
         self.geometry("400x300")
+        self.title(f"{song_name}")
 
         self.label = ctk.CTkLabel(self, text=f"Playing {self.song_name}", font=(FONT, 14))
         self.label.pack(padx=20, pady=20)
@@ -324,7 +346,12 @@ class SongWindow(ctk.CTkToplevel):
         self.current_sec = 0
         self.after_id = None
         self.audio_length = 0
+
     def start_playing(self):
+        """
+        Starts playing the audio file specified by `self.file`
+        :return: none
+        """
         p = pyaudio.PyAudio()
         chunk = 1024
         with wave.open(self.file, "rb") as wf:
@@ -355,6 +382,10 @@ class SongWindow(ctk.CTkToplevel):
         p.terminate()
 
     def pause(self):
+        """
+        Pauses the audio playback
+        :return: none
+        """
         self.paused = True
 
         if self.after_id:
@@ -364,6 +395,10 @@ class SongWindow(ctk.CTkToplevel):
         self.play_bar.stop()
 
     def play(self):
+        """
+        Plays the audio playback
+        :return: none
+        """
         if not self.playing:
             self.playing = True
             threading.Thread(target=self.start_playing, daemon=True).start()
@@ -375,12 +410,20 @@ class SongWindow(ctk.CTkToplevel):
         self.play_bar.start()
 
     def stop(self):
+        """
+        stops the audio playback completely
+        :return: none
+        """
         self.playing = False
         if self.after_id:
             self.current_lbl.after_cancel(self.after_id)
         self.after_id = None
 
     def update_lbl(self):
+        """
+        Updates the current time label and progress bar during audio playback
+        :return: none
+        """
         self.current_lbl.configure(text=f"{int(self.current_sec // 60):02d}:{int(self.current_sec % 60):02d}/"
                                         f"{int(self.audio_length // 60):02d}:{int(self.audio_length % 60):02d}")
 
@@ -392,6 +435,10 @@ class SongWindow(ctk.CTkToplevel):
 
 class LocalFiles(ctk.CTkFrame):
     def __init__(self, master):
+        """
+        initates the local file loading screen that gets input from the user about their shared files
+        :param master: the master ctk.CTk class
+        """
         print('got to local files')
         self.files_list = [f for f in os.listdir(CLI_PATH) if
                            os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
@@ -448,6 +495,14 @@ class LocalFiles(ctk.CTkFrame):
         continue_button.place(relx=0.4, rely=0.7)
 
     def save_song_info(self, file_name, song_name, artist, genre):
+        """
+        saves the inputted song's information to local_files
+        :param file_name: the file's name
+        :param song_name: the song's name
+        :param artist: the artist
+        :param genre: the genre of the song
+        :return:  none
+        """
         global local_files, SAVED_FILES
         md5 = hashlib.md5(open(os.path.join(CLI_PATH, file_name), 'rb').read()).hexdigest()
         if md5 not in local_files.keys() and song_name != '' and artist != '' and genre != '':
@@ -463,6 +518,11 @@ class LocalFiles(ctk.CTkFrame):
             not_saved_label.pack(pady=10)
 
     def continue_to_main(self):
+        """
+        when continue button is pressed,
+        this function checks that all information was saved and switches over to main frame
+        :return: none
+        """
         if len(local_files) == len(self.files_list):
             self.master.switch_frame(MainApp)
         else:
@@ -471,6 +531,12 @@ class LocalFiles(ctk.CTkFrame):
 
 class SearchResult(ctk.CTkScrollableFrame):
     def __init__(self, master, fields,cli_s):
+        """
+        initsaes the search result frame class. Displays the results received from the server
+        :param master: a frame class object
+        :param fields: the fields from the server's message
+        :param cli_s: the client's socket
+        """
         self.master = master
         self.cli_s=cli_s
         ctk.CTkScrollableFrame.__init__(self, master)
@@ -531,17 +597,26 @@ class SearchResult(ctk.CTkScrollableFrame):
             i += 1
 
     def get_file(self, md5):
+        """
+        requests a file from server if the download is available
+        :param md5: the file's md5
+        :return: none
+        """
         to_send = "LINKFN|" + md5
         send_with_size(self.cli_s, to_send)
 
 
 class LoginOrSignUp(ctk.CTkFrame):
     def __init__(self, master):
+        """
+        initiates the first displayed screen. Offers the option to login or signup
+        :param master: a master ctk.CTk object
+        """
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
 
-        self.cli_s = self.master.get_cli_socket()
+        self.cli_s = self.master.cli_s
         title_label = ctk.CTkLabel(self, text='Welcome!', font=(FONT, 24))
         title_label.pack(pady=10)
 
@@ -559,6 +634,10 @@ class LoginOrSignUp(ctk.CTkFrame):
 
 class Signup(ctk.CTkFrame):
     def __init__(self, master):
+        """
+        initaes the singup screen. handles with the username and password inputter from user
+        :param master: a master ctk.CTk pbject
+        """
         print('got to signup frame')
         ctk.CTkFrame.__init__(self, master)
         self.signed = False
@@ -583,7 +662,13 @@ class Signup(ctk.CTkFrame):
 
         login_button = ctk.CTkButton(self, text='signup', font=(FONT, 12), command=self.signup_user)
         login_button.pack(pady=10)
+
     def valid_pass(self,password):
+        """
+        checks if the password is valid and follows the guidelines
+        :param password: input password
+        :return: valid/invalid
+        """
         if len(password) < 8:
             return False
         if not any(char.isupper() for char in password):
@@ -595,7 +680,12 @@ class Signup(ctk.CTkFrame):
         if any(char in "~-.:%" for char in password):
             return False
         return True
+
     def signup_user(self):
+        """
+        handles the communication with the server when signing up
+        :return: none
+        """
         global USERNAME, LOGGED
         while not self.signed:
             self.username = self.username_entry.get()
@@ -620,12 +710,15 @@ class Signup(ctk.CTkFrame):
         if self.signed:
             logging_label = ctk.CTkLabel(self, text='logging in...', font=(FONT, 12))
             logging_label.pack(pady=5)
-            self.master.set_username(self.username)
             self.master.switch_frame(LocalFiles)
 
 
 class Login(ctk.CTkFrame):
     def __init__(self, master):
+        """
+        initiates the login screen. handles with the username and password inputted from user
+        :param master: a master ctk.CTk object
+        """
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
         self.logged = False
@@ -650,6 +743,11 @@ class Login(ctk.CTkFrame):
         login_button = ctk.CTkButton(self, text='Login', font=(FONT, 12), command=self.login_user)
         login_button.pack(pady=10)
     def valid_pass(self,password):
+        """
+        checks if the password is valid and follows the guidelines
+        :param password: input password
+        :return: valid/invalid
+        """
         if len(password) < 8:
             return False
         if not any(char.isupper() for char in password):
@@ -663,6 +761,10 @@ class Login(ctk.CTkFrame):
         return True
 
     def login_user(self):
+        """
+        handles the communication with the server when logging in
+        :return: none
+        """
         global LOGGED, USERNAME
         while not self.logged:
             try:
@@ -692,17 +794,7 @@ class Login(ctk.CTkFrame):
                     tk.messagebox.showerror('Error', 'invalid username or password!')
                     return
             except Exception as e:
-                exception_handler = ExceptionHandler(self.master)
-                exception_handler.handle_general_error(e)
-            except socket.error as socket_e:
-                exception_handler = ExceptionHandler(self.master)
-                exception_handler.handle_socket_error(socket_e)
-            except ctk.CTkException as ctk_e:
-                exception_handler = ExceptionHandler(self.master)
-                exception_handler.handle_tkinter_error(ctk_e)
-
-
-
+                print(e)
         if not self.logged:
             self.username = ''
         else:
@@ -711,35 +803,13 @@ class Login(ctk.CTkFrame):
             self.master.switch_frame(LocalFiles)
 
 
-class ExceptionHandler:
-    def __init__(self, root):
-        self.root = root
-
-    def handle_socket_error(self, exception):
-        # Handle socket errors here
-        print(f"Socket error: {exception}")
-        tk.messagebox.showerror('Socket Error',exception[:20])
-        self.close_all_windows()
-
-    def handle_general_error(self, exception):
-        # Handle general errors here
-        print(f"General error: {exception}")
-        tk.messagebox.showerror('General Error', exception[:20])
-        self.close_all_windows()
-
-    def handle_tkinter_error(self, exception):
-        # Handle tkinter errors here
-        print(f"Tkinter error: {exception}")
-        tk.messagebox.showerror('Graphics Error', exception[:20])
-        self.close_all_windows()
-
-    def close_all_windows(self):
-        # Close all windows and exit the application
-        for widget in self.root.winfo_children():
-            widget.destroy()
-        self.root.quit()
-
 def udp_log(side, message):
+    """
+    logs udp communication into a .txt file
+    :param side: which side is communicating to the log (server or client)
+    :param message: the logged message
+    :return: none
+    """
     with open("udp_" + side + "_log.txt", 'a') as log:
         log.write(str(datetime.datetime.now())[:19] + " - " + message + "\n")
         if LOG_ALL:
@@ -747,6 +817,11 @@ def udp_log(side, message):
 
 
 def check_valid_token(token):
+    """
+    checks if the given token is in the dictionary
+    :param token: the token from the client requesting a file
+    :return: valid or invalid token
+    """
     global token_dict
     print('got to check token')
     time.sleep(0.3)
@@ -761,7 +836,12 @@ def check_valid_token(token):
     return False
 
 
-def udp_server(cli_path, exit_all):
+def udp_server(cli_path):
+    """
+    gets file request and will send Binary file data
+    :param cli_path: the client's path to local shared folder
+    :return: none
+    """
     """
     will get file request and will send Binary file data
     """
@@ -823,6 +903,14 @@ def udp_server(cli_path, exit_all):
 
 
 def udp_file_send(udp_sock, fullname, fsize, addr):
+    """
+    Sends a file over UDP to the specified address.
+    :param udp_sock: The UDP socket used for sending the file.
+    :param fullname: The full path of the file to be sent.
+    :param fsize: The size of the file in bytes.
+    :param addr: The address (IP and port) of the destination.
+    :return: None
+    """
     pos = 0
     done = False
     pack_cnt = 1
@@ -857,9 +945,18 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
 
 def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre,md5):
     """
-    will send file request and then will recv Binary data
+    Sends a request to the UDP server and receives a file if the request is successful.
+    :param cli_path: The path to the client directory where the file will be saved.
+    :param ip: The IP address of the UDP server.
+    :param fn: The filename of the file to be requested.
+    :param size: The size of the file in bytes.
+    :param token: The token for authentication.
+    :param song_name: The name of the song.
+    :param artist: The artist of the song.
+    :param genre: The genre of the song.
+    :param md5: The MD5 hash of the file.
+    :return: None
     """
-    # print("got to func")
     global local_files
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     addr = (ip, UDP_PORT)
@@ -897,7 +994,14 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre,md5):
     udp_sock.close()
 
 
-def udp_file_recv(udp_sock, fullname, size, addr):
+def udp_file_recv(udp_sock, fullname, size):
+    """
+    Receives a file over UDP and saves it to the specified location.
+    :param udp_sock: The UDP socket used for receiving data.
+    :param fullname: The full path of the file to be saved.
+    :param size: The size of the file in bytes.
+    :return: True if the file is successfully received and saved, False otherwise.
+    """
     done = False
     file_pos = 0
     last = 0
@@ -907,7 +1011,7 @@ def udp_file_recv(udp_sock, fullname, size, addr):
     all_ok = False
     checksum_error = False
     try:
-
+        # Repeatedly receive data packets until the entire file is received
         while not done:
             data = b""
             while len(data) < HEADER_SIZE:
@@ -958,18 +1062,26 @@ def udp_file_recv(udp_sock, fullname, size, addr):
                         all_ok = True
 
     except socket.error as e:
-        udp_log("client", "Failed to recv: " + str(e.errno) + str(e))
+        udp_log("client", "Failed to receive: " + str(e.errno) + str(e))
         return False
 
     if all_ok:
-        udp_log("client", "UDP Download  Done " + fullname + " len=" + str(size))
+        udp_log("client", "UDP Download Done " + fullname + " len=" + str(size))
         return True
     else:
-        udp_log("client", "Something went wrong. cant download " + fullname)
+        udp_log("client", "Something went wrong. Can't download " + fullname)
         return False
 
 
 def move_old_to_file(f_data, last, max, keep):
+    """
+    Moves the old data packets to the file.
+    :param f_data: The file object for writing the data.
+    :param last: The last packet number that was written to the file.
+    :param max: The maximum packet number received.
+    :param keep: The dictionary containing the data packets to be written.
+    :return: The updated last packet number.
+    """
     to_del = []
 
     for i in range(last + 1, max + 1):
@@ -988,8 +1100,12 @@ def move_old_to_file(f_data, last, max, keep):
 
 
 def on_closing(app):
-
-        # Destroy all child frames
+    """
+    Closes the application window and handles the quit confirmation.
+    :param app: The application object.
+    :return: None
+    """
+    # Destroy all child frames
     for child in app.winfo_children():
         child.destroy()
     if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
@@ -998,6 +1114,12 @@ def on_closing(app):
 
 
 def main(cli_path, server_ip):
+    """
+    Starts the main application.
+    :param cli_path: The path to the client directory.
+    :param server_ip: The IP address of the server.
+    :return: None
+    """
     print("before connect ip = " + server_ip)
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # connect to the server
@@ -1008,7 +1130,7 @@ def main(cli_path, server_ip):
     context.verify_mode = ssl.CERT_NONE
     # create a socket and connect to the server
     cli_s = context.wrap_socket(client_socket, server_hostname=server_ip)
-    app = App(cli_s,cli_path)
+    app = App(cli_s, cli_path)
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
     try:
         app.mainloop()

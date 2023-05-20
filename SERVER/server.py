@@ -1,15 +1,19 @@
 __author__ = 'Agam'
 
+import datetime
+import secrets
 import socket
 import ssl
-import threading, time, datetime
-from tcp_by_size import send_with_size, recv_by_size
-from sys import argv
-import secrets
 import string
+import threading
+import time
+from sys import argv
+
 import sqlCommands
 from objects import Token
-TCP_PORT=8888
+from tcp_by_size import send_with_size, recv_by_size
+
+TCP_PORT = 8888
 DEBUG = True
 exit_all = False
 songs_database = sqlCommands.SongsORM('server_database.db')
@@ -17,8 +21,9 @@ users_database = sqlCommands.UserORM('server_database.db')
 files_lock = threading.Lock()
 current_tokens = {}
 token_lock = threading.Lock()
-DATETIME_FORMAT='%Y-%m-%d %H:%M:%S'
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 SERVER_IP = ''
+
 
 def create_token():
     """
@@ -26,9 +31,10 @@ def create_token():
     :return: a token string
     """
     secure_str = ''.join((secrets.choice(string.ascii_letters + string.digits) for i in range(16)))
-    return Token(secure_str,datetime.datetime.now().strftime(DATETIME_FORMAT))
+    return Token(secure_str, datetime.datetime.now().strftime(DATETIME_FORMAT))
 
-def login(client_socket,cli_ip):
+
+def login(client_socket, cli_ip):
     """
     handles the login/signup process
     :param client_socket: the client's socket
@@ -37,12 +43,12 @@ def login(client_socket,cli_ip):
     """
     tries = 5
     logged = False
-    username=''
+    username = ''
     data = recv_by_size(client_socket)
 
     if data == "":
         print("Error: Seems Client DC")
-        return False,''
+        return False, ''
     while data[:6] == 'SIGNUP':
         if data == "":
             print("Error: Seems Client DC")
@@ -55,9 +61,9 @@ def login(client_socket,cli_ip):
         if data == "":
             print("Error: Seems Client DC")
             return False, ''
-        if tries!=5:
+        if tries != 5:
             data = recv_by_size(client_socket)
-        to_send = do_action(data,cli_ip)
+        to_send = do_action(data, cli_ip)
         if to_send[-2:] == 'OK':
             logged = True
             username = data.split('|')[1]
@@ -69,7 +75,7 @@ def login(client_socket,cli_ip):
     return logged, username
 
 
-def handle_token(cli_ip,sock):
+def handle_token(cli_ip, sock):
     """
     the token's thread function that sends a token to the udp server (a tcp client)
      when there is a request from another client
@@ -86,7 +92,7 @@ def handle_token(cli_ip,sock):
             to_send = do_action(data, cli_ip)
             send_with_size(sock, to_send)
             recv = recv_by_size(sock)
-            to_send = do_action(recv,cli_ip)
+            to_send = do_action(recv, cli_ip)
 
 
 def handle_client(sock, tid, cli_ip):
@@ -107,13 +113,13 @@ def handle_client(sock, tid, cli_ip):
     context.load_cert_chain(r'cert\cert.pem', r'cert\key.pem')
     client_socket = context.wrap_socket(sock, server_side=True)
 
-    logged, username= login(client_socket, cli_ip)
+    logged, username = login(client_socket, cli_ip)
 
     if not logged:
         return
     if DEBUG:
         print(f'user:{username} is logged in from ip:{cli_ip}')
-    token_server = threading.Thread(target=handle_token,args=(cli_ip,client_socket))
+    token_server = threading.Thread(target=handle_token, args=(cli_ip, client_socket))
     token_server.start()
     time.sleep(0.3)
 
@@ -128,7 +134,7 @@ def handle_client(sock, tid, cli_ip):
             to_send = do_action(data, cli_ip)
             send_with_size(client_socket, to_send)
             if to_send == 'LGO_BACK':
-                login(client_socket,cli_ip)
+                login(client_socket, cli_ip)
 
         except socket.error as err:
             if err.errno == 10054:
@@ -169,32 +175,33 @@ def do_action(data, cli_ip):
         if action == "LOGINC":
             username = fields[0]
             password = fields[1]
-            verify = users_database.login(username,password,cli_ip)
+            verify = users_database.login(username, password, cli_ip)
             if verify:
-                to_send = 'LOGGED' + "|"+"OK"
+                to_send = 'LOGGED' + "|" + "OK"
             else:
-                to_send = 'LOGGED'+ "|"+"NO"
+                to_send = 'LOGGED' + "|" + "NO"
         elif action == "SIGNUP":
             username = fields[0]
             password = fields[1]
-            valid, msg = users_database.signup(username,password,cli_ip)
+            valid, msg = users_database.signup(username, password, cli_ip)
             to_send = 'SIGNED' + "|" + msg
 
         elif action == "SEARCH":
             answer = 'SRCHBK'
             print('getting songs')
-            print('fields[0]:',fields[0])
-            print('fields[1]:',fields[1])
+            print('fields[0]:', fields[0])
+            print('fields[1]:', fields[1])
             songs = songs_database.search_songs(fields[0])
             print(songs[0])
             if len(songs) == 0:
                 answer += ''
             else:
                 for song in songs:
-                    is_available = users_database.is_available(song.md5,fields[1])
+                    is_available = users_database.is_available(song.md5, fields[1])
                     username = songs_database.get_user_by_song(song.md5)
                     print('username got:', username)
-                    answer += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~{username}~{is_available}"
+                    answer += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~" \
+                              f"{username}~{is_available} "
             to_send = answer
 
         elif action == "UPLOAD":
@@ -206,7 +213,6 @@ def do_action(data, cli_ip):
         elif action == "LINKFN":
             md5 = fields[0]
             exists = songs_database.song_exists(md5)
-            # print('THIS SONG EXISTS', exists)
             if exists:
                 song = songs_database.get_song_by_md5(md5)[0]
                 token_obj = create_token()
@@ -219,7 +225,8 @@ def do_action(data, cli_ip):
                 token_lock.release()
                 while not current_tokens[ip].is_ack():
                     time.sleep(0.01)
-                to_send = f'LINKBK|{song.file_name}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|{song.artist}|{song.genre}|{song.md5}' # file name, ip, size
+                to_send = f'LINKBK|{song.file_name}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|' \
+                          f'{song.artist}|{song.genre}|{song.md5}'  # file name, ip, size
                 token_lock.acquire()
                 del current_tokens[ip]
                 token_lock.release()
@@ -249,6 +256,7 @@ def do_action(data, cli_ip):
         to_send = handle_error(1)
     return to_send
 
+
 def handle_error(error_num):
     """
     gets an error code and returns the answer to client
@@ -265,6 +273,7 @@ def handle_error(error_num):
     elif error_num == 4:
         to_send += "004|File Not Found"
     return to_send
+
 
 def main():
     """
@@ -305,4 +314,3 @@ if __name__ == "__main__":
     else:
         print("USAGE : <enter your IP>")
         exit()
-
