@@ -87,7 +87,7 @@ class MainApp(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH, exit_all))
+        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH))
         self.udp_srv.start()
         time.sleep(0.3)
         self.recv_thread = threading.Thread(target=self.recv_thread_func)
@@ -551,50 +551,49 @@ class SearchResult(ctk.CTkScrollableFrame):
         table_frame.pack(pady=10)
 
         # Create the headers for the table
-        print('fields:',fields)
-        if len(fields) == 0:
-            empty_label = ctk.CTkLabel(table_frame, text=f"No search results")
+        if fields[0] == '':
+            empty_label = ctk.CTkLabel(self, text=f"No search results",font=(FONT,16))
             empty_label.pack(pady=10)
-            return
 
-        headers = ['File Name', 'Song', 'Artist', 'Genre', 'Size', 'Username', 'Download']
-        for i, header in enumerate(headers):
-            header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 14), padx=10, pady=5)
-            header_label.grid(row=0, column=i, sticky='w')
+        else:
+            headers = ['File Name', 'Song', 'Artist', 'Genre', 'Size', 'Username', 'Download']
+            for i, header in enumerate(headers):
+                header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 14), padx=10, pady=5)
+                header_label.grid(row=0, column=i, sticky='w')
 
-        # Add the search results to the table
-        i = 1
-        for f in fields:
-            info = f.split("~")
-            md5=info[0]
-            file_name = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            file_name.grid(row=i + 1, column=0, sticky='w',pady=10)
+            # Add the search results to the table
+            i = 1
+            for f in fields:
+                info = f.split("~")
+                md5=info[0]
+                file_name = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+                file_name.grid(row=i + 1, column=0, sticky='w',pady=10)
 
-            song_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            song_label.grid(row=i + 1, column=1, sticky='w',pady=10)
+                song_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+                song_label.grid(row=i + 1, column=1, sticky='w',pady=10)
 
-            artist_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            artist_label.grid(row=i + 1, column=2, sticky='w',pady=10)
+                artist_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+                artist_label.grid(row=i + 1, column=2, sticky='w',pady=10)
 
-            genre_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            genre_label.grid(row=i + 1, column=3, sticky='w',pady=10)
+                genre_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+                genre_label.grid(row=i + 1, column=3, sticky='w',pady=10)
 
-            size_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            size_label.grid(row=i + 1, column=4, sticky='w',pady=10)
+                size_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+                size_label.grid(row=i + 1, column=4, sticky='w',pady=10)
 
-            username_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-            username_label.grid(row=i + 1, column=5, sticky='w',pady=10)
+                username_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
+                username_label.grid(row=i + 1, column=5, sticky='w',pady=10)
 
 
-            if info[7] == 'True':
-                print('download is available')
-                download_button = ctk.CTkButton(table_frame, command=lambda f=md5: self.get_file(f),
-                                                text='Download!', font=(FONT, 14))
-            else:
-                download_button = ctk.CTkButton(table_frame, text='Unavailable', font=(FONT, 14))
-            download_button.grid(row=i + 1, column=6, sticky='w',pady=10)
+                if info[7] == 'True':
+                    print('download is available')
+                    download_button = ctk.CTkButton(table_frame, command=lambda f=md5: self.get_file(f),
+                                                    text='Download!', font=(FONT, 14))
+                else:
+                    download_button = ctk.CTkButton(table_frame, text='Unavailable', font=(FONT, 14))
+                download_button.grid(row=i + 1, column=6, sticky='w',pady=10)
 
-            i += 1
+                i += 1
 
     def get_file(self, md5):
         """
@@ -677,7 +676,7 @@ class Signup(ctk.CTkFrame):
             return False
         if not any(char.isdigit() for char in password):
             return False
-        if any(char in "~-.:%" for char in password):
+        if any(char in "~-.:% " for char in password):
             return False
         return True
 
@@ -878,13 +877,13 @@ def udp_server(cli_path):
                 if check_valid_token(ftoken):
                     if md5 in local_files.keys():
                         if local_files[md5].size == fsize and fsize > 0:
-                            fullname = os.path.join(cli_path, fn)
+                            fullname = os.path.join(cli_path, md5)
                             udp_file_send(udp_sock, fullname, fsize, addr)
                             time.sleep(5)
                         else:
                             udp_log("server", "sizes not ok")
                     else:
-                        udp_log("server", "file not found " + fn)
+                        udp_log("server", "file not found " + md5)
                 else:
                     udp_log("server", "invalid token " + ftoken)
         except socket.error as e:
