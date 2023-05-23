@@ -112,7 +112,7 @@ class UserORM():
 
         :return: True if login is successful, False otherwise.
         """
-        username.lower()
+        username = username.lower()
         user = self.get_user_by_username(username)
         if user is not None:
             secure_pass = hashlib.sha256(password.encode()).hexdigest()
@@ -209,7 +209,7 @@ class UserORM():
         """
         self.open_DB()
         user = None
-        sql = f"SELECT * FROM users WHERE id={song.committed_user};"
+        sql = f"SELECT * FROM users WHERE username={song.committed_user};"
         res = self.cursor.execute(sql)
         row = res.fetchone()
         if row is not None:
@@ -227,12 +227,12 @@ class UserORM():
         """
         self.open_DB()
         user = None
-        sql = f"SELECT * FROM songs WHERE md5=='{md5}';"
+        sql = f"SELECT committed_user FROM songs WHERE md5=='{md5}';"
         res = self.cursor.execute(sql)
         row = res.fetchone()
         if row is not None:
-            username = row[5]
-            print(username)
+            username = row[0]
+            print('username',username)
             if req_user == username:
                 self.close_DB()
                 return False
@@ -241,7 +241,6 @@ class UserORM():
             row = res.fetchone()
             self.close_DB()
             if row is not None:
-                print('connected')
                 return int(row[0]) == 1
             else:
                 return False
@@ -459,8 +458,21 @@ def main():
     # create an instance of the SongsORM class and create the songs table
     songs_orm = SongsORM(r'server_database.db')
     users_orm = UserORM(r'server_database.db')
-    print(len(songs_orm.search_songs('x')))
+    #print(len(songs_orm.search_songs('x')))
     # songs_orm.create_table()
+    fields=["jazz","agam8"]
+    songs = songs_orm.search_songs(fields[0])
+    answer='SRCHBK'
+    if len(songs) == 0:
+        answer += ''
+    else:
+        for song in songs:
+            is_available = users_orm.is_available(song.md5, fields[1])
+            print(is_available)
+            answer += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~" \
+                      f"{song.committed_user}~{is_available}"
+    to_send = answer
+    print(answer)
 
     # create a song object and add it to the songs table
     # song = Song('song_file.mp3', 'Song Name', 'Artist Name',  'Pop', '192.168.0.1', '1024')

@@ -180,4 +180,81 @@ import hashlib
 def create_md5(filename):
     return hashlib.md5(open(filename,'rb').read()).hexdigest()
 
-print(create_md5(r'CLIENT\client_songs\אריאל זילבר ⧸⧸ שמש שמש.wav'))
+def udp_file_recv(udp_sock, fullname, size):
+    """
+    Receives a file over UDP and saves it to the specified location.
+    :param udp_sock: The UDP socket used for receiving data.
+    :param fullname: The full path of the file to be saved.
+    :param size: The size of the file in bytes.
+    :return: True if the file is successfully received and saved, False otherwise.
+    """
+    done = False
+    file_pos = 0
+    last = 0
+    max = 0
+    keep = {}
+    file_open = False
+    all_ok = False
+    checksum_error = False
+    try:
+        # Repeatedly receive data packets until the entire file is received
+        while not done:
+            data = b""
+            while len(data) < HEADER_SIZE:
+                rcv_data, addr = udp_sock.recvfrom(FILE_PACK_SIZE + HEADER_SIZE)
+                if rcv_data == b"":
+                    return False
+                data += rcv_data
+            if data == "":
+                return False
+            if not file_open:
+                f_write = open(fullname, 'wb')
+                file_open = True
+
+            header = data[:HEADER_SIZE].decode()
+            pack_size = int(header[:9])
+            pack_cnt = int(header[10:18])
+            pack_checksum = header[19:]
+            bin_data = data[HEADER_SIZE:]
+            m = hashlib.md5()
+            m.update(bin_data)
+            checksum = m.hexdigest()
+
+            if checksum != pack_checksum:
+                checksum_error = True
+                udp_log("client", "Checksum error pack " + str(pack_cnt))
+            file_pos += pack_size
+            if (file_pos >= size):
+                done = True
+
+            if DEBUG and LOG_ALL:
+                pass
+                udp_log("client", "Just got part %d file with %d bytes pos = %d header %s " % (
+                    pack_cnt, len(bin_data), file_pos, header))
+
+            if pack_cnt - 1 == last:
+                f_write.write(bin_data)
+                last += 1
+            else:
+                keep[pack_cnt] = bin_data
+                if pack_cnt > max:
+                    max = pack_cnt
+            last = move_old_to_file(f_write, last, max, keep)
+        if file_open:
+            f_write.close()
+        if done:
+            if os.path.isfile(fullname):
+                if os.path.getsize(fullname) == size:
+                    if not checksum_error:
+                        all_ok = True
+
+    except socket.error as e:
+        udp_log("client", "Failed to receive: " + str(e.errno) + str(e))
+        return False
+
+    if all_ok:
+        udp_log("client", "UDP Download Done " + fullname + " len=" + str(size))
+        return True
+    else:
+        udp_log("client", "Something went wrong. Can't download " + fullname)
+        return False

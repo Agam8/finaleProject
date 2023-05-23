@@ -91,8 +91,7 @@ def handle_token(cli_ip, sock):
             data = "SENDTK"
             to_send = do_action(data, cli_ip)
             send_with_size(sock, to_send)
-            recv = recv_by_size(sock)
-            to_send = do_action(recv, cli_ip)
+
 
 
 def handle_client(sock, tid, cli_ip):
@@ -194,9 +193,9 @@ def do_action(data, cli_ip):
             else:
                 for song in songs:
                     is_available = users_database.is_available(song.md5, fields[1])
-                    username = songs_database.get_user_by_song(song.md5)
+                    print('is available ', is_available)
                     answer += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~" \
-                              f"{username}~{is_available} "
+                              f"{song.committed_user}~{is_available}"
             to_send = answer
 
         elif action == "UPLOAD":
@@ -230,16 +229,13 @@ def do_action(data, cli_ip):
 
         elif action == 'SENDTK':
             token = current_tokens[cli_ip]
-            token_lock.acquire()
-            current_tokens[cli_ip].set_ack()
-            token_lock.release()
             to_send = f'SENDTK|{token.token}|{token.start_time}'
 
         elif action == 'TOKACK':
             token_lock.acquire()
             current_tokens[cli_ip].set_ack()
             token_lock.release()
-            to_send = 'got token'
+            to_send = f'{cli_ip} got token'
 
         elif action == "RULIVE":
             to_send = 'AMLIVE' + "|Server Is Live"

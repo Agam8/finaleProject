@@ -34,6 +34,7 @@ SAVED_FILES = False
 FONT = 'Yu Gothic UI'
 error_handler = None
 
+
 class App(ctk.CTk):
     def __init__(self, cli_s, cli_path):
         """
@@ -41,7 +42,7 @@ class App(ctk.CTk):
         :param cli_s: client's socket
         :param cli_path: client's path to local shared folder
         """
-        global CLI_PATH,error_handler
+        global CLI_PATH, error_handler
         ctk.CTk.__init__(self)
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme('green')
@@ -87,7 +88,7 @@ class MainApp(ctk.CTkFrame):
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        self.udp_srv = threading.Thread(target=udp_server, args=(CLI_PATH))
+        self.udp_srv = threading.Thread(target=udp_server)
         self.udp_srv.start()
         time.sleep(0.3)
         self.recv_thread = threading.Thread(target=self.recv_thread_func)
@@ -97,7 +98,7 @@ class MainApp(ctk.CTkFrame):
         self.search_results = None
         self.files_frame = None
         self.search_progress = ctk.CTkProgressBar(self)
-        self.search_label = ctk.CTkLabel(self,text=f'')
+        self.search_label = ctk.CTkLabel(self, text=f'')
 
         self.share_files()
         title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=(FONT, 24))
@@ -155,7 +156,7 @@ class MainApp(ctk.CTkFrame):
             if self.search_label is not None:
                 self.search_label.configure(text='')
                 self.search_label.pack()
-            self.search_results = SearchResult(self, fields,self.cli_s)
+            self.search_results = SearchResult(self, fields, self.cli_s)
 
         elif action == "UPLDBK":
             print("Share status: " + fields[0])
@@ -174,7 +175,7 @@ class MainApp(ctk.CTkFrame):
             md5 = fields[7]
             time.sleep(0.5)
             udp_cli = threading.Thread(target=udp_client,
-                                       args=(CLI_PATH, fip, fname, fsize, ftoken, song_name, artist, genre,md5))
+                                       args=(CLI_PATH, fip, fname, fsize, ftoken, song_name, artist, genre, md5))
             udp_cli.start()
             print("Run udp client to download the file " + fname + " from " + fip)
             udp_cli.join()
@@ -217,7 +218,7 @@ class MainApp(ctk.CTkFrame):
         :return: none
         """
         keyword = self.search_entry.get()
-        self.search_label.configure(text=f"searching for '{keyword}'...",font=(FONT,12))
+        self.search_label.configure(text=f"searching for '{keyword}'...", font=(FONT, 12))
         self.search_label.pack()
         self.search_progress = ctk.CTkProgressBar(self)
         self.search_progress.set(0)
@@ -251,7 +252,7 @@ class MainApp(ctk.CTkFrame):
         :return: none
         """
         to_send = "TOKACK"
-        send_with_size(self.cli_s,to_send)
+        send_with_size(self.cli_s, to_send)
 
 
 class ShowLibrary(ctk.CTkFrame):
@@ -327,13 +328,13 @@ class SongWindow(ctk.CTkToplevel):
         self.label.pack(padx=20, pady=20)
         self.current_lbl = ctk.CTkLabel(self, text="00:00/00:00", font=(FONT, 14))
         self.current_lbl.pack()
-        table_frame=ctk.CTkFrame(self)
+        table_frame = ctk.CTkFrame(self)
         table_frame.pack(pady=2)
         pause_image = ctk.CTkImage(Image.open('pause_button_bg.png'), size=(75, 90))
-        self.pause_btn = ctk.CTkButton(table_frame, command=self.pause, font=(FONT, 14),image=pause_image,text='')
+        self.pause_btn = ctk.CTkButton(table_frame, command=self.pause, font=(FONT, 14), image=pause_image, text='')
         self.pause_btn.grid(row=0, column=0, sticky='w')
         play_image = ctk.CTkImage(Image.open('play_button_bg.png'), size=(75, 90))
-        self.play_btn = ctk.CTkButton(table_frame, command=self.play, font=(FONT, 14),image=play_image, text='')
+        self.play_btn = ctk.CTkButton(table_frame, command=self.play, font=(FONT, 14), image=play_image, text='')
         self.play_btn.grid(row=0, column=1, sticky='w')
 
         self.play_bar = ctk.CTkProgressBar(self)
@@ -357,7 +358,7 @@ class SongWindow(ctk.CTkToplevel):
         with wave.open(self.file, "rb") as wf:
 
             self.audio_length = wf.getnframes() / float(wf.getframerate())
-            self.play_bar.configure(indeterminate_speed=1/self.audio_length)
+            self.play_bar.configure(indeterminate_speed=1 / self.audio_length)
             stream = p.open(format=
                             p.get_format_from_width(wf.getsampwidth()),
                             channels=wf.getnchannels(),
@@ -375,7 +376,6 @@ class SongWindow(ctk.CTkToplevel):
                     stream.write(data)
                     data = wf.readframes(chunk)
                     self.current_sec = chunk_total / wf.getframerate()
-
 
         self.playing = False
         stream.close()
@@ -507,10 +507,11 @@ class LocalFiles(ctk.CTkFrame):
         md5 = hashlib.md5(open(os.path.join(CLI_PATH, file_name), 'rb').read()).hexdigest()
         if md5 not in local_files.keys() and song_name != '' and artist != '' and genre != '':
             if "'" in song_name or "'" in artist or "'" in genre:
-                tk.messagebox.showwarning('Warning',"The song information contains non valid chars and cannot be saved")
+                tk.messagebox.showwarning('Warning',
+                                          "The song information contains non valid chars and cannot be saved")
                 return
             local_files[md5] = Song(md5, file_name, song_name, artist, genre, USERNAME,
-                                          size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
+                                    size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
             saved_label = ctk.CTkLabel(self, text=f"{file_name} saved", font=(FONT, 12), padx=10, pady=5)
             saved_label.pack(pady=10)
         else:
@@ -530,7 +531,7 @@ class LocalFiles(ctk.CTkFrame):
 
 
 class SearchResult(ctk.CTkScrollableFrame):
-    def __init__(self, master, fields,cli_s):
+    def __init__(self, master, fields, cli_s):
         """
         initsaes the search result frame class. Displays the results received from the server
         :param master: a frame class object
@@ -538,7 +539,7 @@ class SearchResult(ctk.CTkScrollableFrame):
         :param cli_s: the client's socket
         """
         self.master = master
-        self.cli_s=cli_s
+        self.cli_s = cli_s
         ctk.CTkScrollableFrame.__init__(self, master)
         self.update_idletasks()
         self.place(anchor='center', relx=0.5, rely=0.8, relheight=0.95, relwidth=0.95)
@@ -552,7 +553,7 @@ class SearchResult(ctk.CTkScrollableFrame):
 
         # Create the headers for the table
         if fields[0] == '':
-            empty_label = ctk.CTkLabel(self, text=f"No search results",font=(FONT,16))
+            empty_label = ctk.CTkLabel(self, text=f"No search results", font=(FONT, 16))
             empty_label.pack(pady=10)
 
         else:
@@ -565,33 +566,35 @@ class SearchResult(ctk.CTkScrollableFrame):
             i = 1
             for f in fields:
                 info = f.split("~")
-                md5=info[0]
-                file_name = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-                file_name.grid(row=i + 1, column=0, sticky='w',pady=10)
+                md5 = info[0]
+                print(info)
+                file_name = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2, wraplength=150)
+                file_name.grid(row=i + 1, column=0, sticky='w', pady=10)
 
-                song_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-                song_label.grid(row=i + 1, column=1, sticky='w',pady=10)
+                song_label = ctk.CTkLabel(table_frame, text=info[2], font=(FONT, 14), padx=10, pady=2, wraplength=150)
+                song_label.grid(row=i + 1, column=1, sticky='w', pady=10)
 
-                artist_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-                artist_label.grid(row=i + 1, column=2, sticky='w',pady=10)
+                artist_label = ctk.CTkLabel(table_frame, text=info[3], font=(FONT, 14), padx=10, pady=2, wraplength=150)
+                artist_label.grid(row=i + 1, column=2, sticky='w', pady=10)
 
-                genre_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-                genre_label.grid(row=i + 1, column=3, sticky='w',pady=10)
+                genre_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2, wraplength=150)
+                genre_label.grid(row=i + 1, column=3, sticky='w', pady=10)
 
-                size_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-                size_label.grid(row=i + 1, column=4, sticky='w',pady=10)
+                size_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2, wraplength=150)
+                size_label.grid(row=i + 1, column=4, sticky='w', pady=10)
 
-                username_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,wraplength=150)
-                username_label.grid(row=i + 1, column=5, sticky='w',pady=10)
-
-
+                username_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,
+                                              wraplength=150)
+                username_label.grid(row=i + 1, column=5, sticky='w', pady=10)
+                print(info[7])
                 if info[7] == 'True':
-                    print('download is available')
+                    print('got to available')
                     download_button = ctk.CTkButton(table_frame, command=lambda f=md5: self.get_file(f),
                                                     text='Download!', font=(FONT, 14))
                 else:
                     download_button = ctk.CTkButton(table_frame, text='Unavailable', font=(FONT, 14))
-                download_button.grid(row=i + 1, column=6, sticky='w',pady=10)
+
+                download_button.grid(row=i + 1, column=6, sticky='w', pady=10)
 
                 i += 1
 
@@ -627,9 +630,10 @@ class LoginOrSignUp(ctk.CTkFrame):
                                       command=lambda: self.master.switch_frame(Signup))
         signup_button.pack(pady=10)
 
-        image=ctk.CTkImage(Image.open('logo.png'),size=(500,312))
-        image_label=ctk.CTkLabel(self,text='',image=image)
+        image = ctk.CTkImage(Image.open('logo.png'), size=(500, 312))
+        image_label = ctk.CTkLabel(self, text='', image=image)
         image_label.pack(pady=15)
+
 
 class Signup(ctk.CTkFrame):
     def __init__(self, master):
@@ -662,7 +666,7 @@ class Signup(ctk.CTkFrame):
         login_button = ctk.CTkButton(self, text='signup', font=(FONT, 12), command=self.signup_user)
         login_button.pack(pady=10)
 
-    def valid_pass(self,password):
+    def valid_pass(self, password):
         """
         checks if the password is valid and follows the guidelines
         :param password: input password
@@ -741,7 +745,8 @@ class Login(ctk.CTkFrame):
 
         login_button = ctk.CTkButton(self, text='Login', font=(FONT, 12), command=self.login_user)
         login_button.pack(pady=10)
-    def valid_pass(self,password):
+
+    def valid_pass(self, password):
         """
         checks if the password is valid and follows the guidelines
         :param password: input password
@@ -835,7 +840,7 @@ def check_valid_token(token):
     return False
 
 
-def udp_server(cli_path):
+def udp_server():
     """
     gets file request and will send Binary file data
     :param cli_path: the client's path to local shared folder
@@ -845,7 +850,7 @@ def udp_server(cli_path):
     will get file request and will send Binary file data
     """
     global local_files
-
+    cli_path=CLI_PATH
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     bind_ok = False
 
@@ -877,7 +882,7 @@ def udp_server(cli_path):
                 if check_valid_token(ftoken):
                     if md5 in local_files.keys():
                         if local_files[md5].size == fsize and fsize > 0:
-                            fullname = os.path.join(cli_path, md5)
+                            fullname = os.path.join(cli_path, local_files[md5].file_name)
                             udp_file_send(udp_sock, fullname, fsize, addr)
                             time.sleep(5)
                         else:
@@ -942,7 +947,7 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
         udp_log("server", "End of send udp file")
 
 
-def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre,md5):
+def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
     """
     Sends a request to the UDP server and receives a file if the request is successful.
     :param cli_path: The path to the client directory where the file will be saved.
@@ -973,25 +978,24 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre,md5):
         print("timeout on socket - No answer")
     except socket.error as e:
         if e.errno == 10040:
-            udp_log("client", "Send faliled Too large file")
+            udp_log("client", "Send failed Too large file")
         else:
-            udp_log("client", "Send faliled general socket error  " + e.message)
+            udp_log("client", "Send failed general socket error  " + e.message)
 
     if send_ok and size > 0:
-        saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size, addr)
+        saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size)
 
         if saved:
             check_md5 = hashlib.md5(open(fn, 'rb').read()).hexdigest()
             if check_md5 == md5:
-                local_files[md5] = Song(fn, song_name, artist, genre, USERNAME, md5,size=size)
+                local_files[md5] = Song(fn, song_name, artist, genre, USERNAME, md5, size=size)
             else:
-                print('md5 of filw is wrong',check_md5, md5)
+                print('md5 of file is wrong', check_md5, md5)
 
     else:
         if DEBUG:
             udp_log('client', "Send failed or size = 0")
     udp_sock.close()
-
 
 def udp_file_recv(udp_sock, fullname, size):
     """
@@ -1003,68 +1007,57 @@ def udp_file_recv(udp_sock, fullname, size):
     """
     done = False
     file_pos = 0
-    last = 0
-    max = 0
-    keep = {}
-    file_open = False
-    all_ok = False
-    checksum_error = False
+    received_packets = {}
+    expected_packet = 1
+
     try:
-        # Repeatedly receive data packets until the entire file is received
+        f_write = open(fullname, 'wb')
+
         while not done:
-            data = b""
-            while len(data) < HEADER_SIZE:
-                rcv_data, addr = udp_sock.recvfrom(FILE_PACK_SIZE + HEADER_SIZE)
-                if rcv_data == b"":
-                    return False
-                data += rcv_data
-            if data == "":
+            data, addr = udp_sock.recvfrom(FILE_PACK_SIZE + HEADER_SIZE)
+            if data == b"":
                 return False
-            if not file_open:
-                f_write = open(fullname, 'wb')
-                file_open = True
 
             header = data[:HEADER_SIZE].decode()
             pack_size = int(header[:9])
             pack_cnt = int(header[10:18])
             pack_checksum = header[19:]
             bin_data = data[HEADER_SIZE:]
+
             m = hashlib.md5()
             m.update(bin_data)
             checksum = m.hexdigest()
+
             if checksum != pack_checksum:
-                checksum_error = True
                 udp_log("client", "Checksum error pack " + str(pack_cnt))
-            file_pos += pack_size
-            if (file_pos >= size):
-                done = True
+                continue
 
-            if DEBUG and LOG_ALL:
-                pass
-                udp_log("client", "Just got part %d file with %d bytes pos = %d header %s " % (
-                    pack_cnt, len(bin_data), file_pos, header))
-
-            if pack_cnt - 1 == last:
+            if pack_cnt == expected_packet:
                 f_write.write(bin_data)
-                last += 1
+                file_pos += pack_size
+                expected_packet += 1
+
+                if file_pos >= size:
+                    done = True
+
+                # Write any buffered packets that arrived out of order
+                while expected_packet in received_packets:
+                    f_write.write(received_packets[expected_packet])
+                    file_pos += len(received_packets[expected_packet])
+                    expected_packet += 1
+                    del received_packets[expected_packet]
+
             else:
-                keep[pack_cnt] = bin_data
-                if pack_cnt > max:
-                    max = pack_cnt
-            last = move_old_to_file(f_write, last, max, keep)
-        if file_open:
-            f_write.close()
-        if done:
-            if os.path.isfile(fullname):
-                if os.path.getsize(fullname) == size:
-                    if not checksum_error:
-                        all_ok = True
+                # Buffer out-of-order packets
+                received_packets[pack_cnt] = bin_data
 
     except socket.error as e:
         udp_log("client", "Failed to receive: " + str(e.errno) + str(e))
         return False
 
-    if all_ok:
+    f_write.close()
+
+    if file_pos == size:
         udp_log("client", "UDP Download Done " + fullname + " len=" + str(size))
         return True
     else:
