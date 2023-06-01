@@ -87,11 +87,11 @@ def handle_token(cli_ip, sock):
         if exit_all:
             print("Seems Server DC")
             break
-        if cli_ip in current_tokens.keys():
+        if cli_ip in current_tokens.keys() and not current_tokens[cli_ip].in_handle():
+            current_tokens[cli_ip].set_handle()
             data = "SENDTK"
             to_send = do_action(data, cli_ip)
             send_with_size(sock, to_send)
-
 
 
 def handle_client(sock, tid, cli_ip):
@@ -219,8 +219,16 @@ def do_action(data, cli_ip):
                 token_lock.release()
                 while not current_tokens[ip].is_ack():
                     time.sleep(0.01)
-                to_send = f'LINKBK|{song.file_name}|{song.ip}|{song.size}|{token_obj.token}|{song.song_name}|' \
-                          f'{song.artist}|{song.genre}|{song.md5}'  # file name, ip, size
+
+                print('token acknowledged')
+                print("song's ip: ",ip)
+                if song.ip == '127.0.0.1':
+                    ip = SERVER_IP
+                else:
+                    ip = song.ip
+                time.sleep(0.3)
+                to_send = f'LINKBK|{song.file_name}|{ip}|{song.size}|{token_obj.token}|{song.song_name}|' \
+                          f'{song.artist}|{song.genre}|{song.md5}'
                 token_lock.acquire()
                 del current_tokens[ip]
                 token_lock.release()
@@ -235,7 +243,8 @@ def do_action(data, cli_ip):
             token_lock.acquire()
             current_tokens[cli_ip].set_ack()
             token_lock.release()
-            to_send = f'{cli_ip} got token'
+            print(f'{cli_ip} got token')
+            to_send = 'AMLIVE' + "|Server Is Live"
 
         elif action == "RULIVE":
             to_send = 'AMLIVE' + "|Server Is Live"

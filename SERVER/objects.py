@@ -9,6 +9,7 @@ class User(object):
     def __str__(self):
         return f'{self.username}~***~{self.current_ip}~{self.is_logged}'
 
+
 class Song(object):
     def __init__(self, md5, file_name, song_name, artist, genre, committed_user, ip='', size=''):
         self.md5 = md5
@@ -20,7 +21,6 @@ class Song(object):
         self.size = size
         self.committed_user = committed_user
 
-
     def __str__(self):
         return f'\n\tmd5: {self.md5}' \
                f'\n\tfile name: {self.file_name}' \
@@ -31,15 +31,25 @@ class Song(object):
                f'\n\tip: {self.ip}' \
                f'\n\tsize: {self.size}'
 
+
 class Token():
     def __init__(self, token, start_time):
         self.token = token
         self.start_time = start_time
-        self.ack=False
+        self.ack = False
+        self.handling = False
+
     def is_ack(self):
         return self.ack
+
     def set_ack(self):
-        self.ack=True
+        self.ack = True
+
+    def in_handle(self):
+        return self.handling
+
+    def set_handle(self):
+        self.handling = True
 
     def __str__(self):
-        return self.token+"~"+str(self.start_time)
+        return self.token + "~" + str(self.start_time)

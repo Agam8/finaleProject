@@ -228,7 +228,6 @@ def udp_file_recv(udp_sock, fullname, size):
                 done = True
 
             if DEBUG and LOG_ALL:
-                pass
                 udp_log("client", "Just got part %d file with %d bytes pos = %d header %s " % (
                     pack_cnt, len(bin_data), file_pos, header))
 

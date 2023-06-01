@@ -925,7 +925,7 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
                 udp_log("server", "Seems empty file in disk" + fullname)
                 break
             pos += len(bin_data)
-            if (pos >= fsize):
+            if pos >= fsize:
                 done = True
 
             m = hashlib.md5()
@@ -964,7 +964,7 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
     global local_files
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     addr = (ip, UDP_PORT)
-    udp_sock.settimeout(10)
+    # udp_sock.settimeout(15)
     send_ok = False
 
     to_send = "FRQ|" + md5 + "|" + str(size) + "|" + token
@@ -1007,57 +1007,68 @@ def udp_file_recv(udp_sock, fullname, size):
     """
     done = False
     file_pos = 0
-    received_packets = {}
-    expected_packet = 1
-
+    last = 0
+    max = 0
+    keep = {}
+    file_open = False
+    all_ok = False
+    checksum_error = False
     try:
-        f_write = open(fullname, 'wb')
-
+        # Repeatedly receive data packets until the entire file is received
         while not done:
-            data, addr = udp_sock.recvfrom(FILE_PACK_SIZE + HEADER_SIZE)
-            if data == b"":
+            data = b""
+            while len(data) < HEADER_SIZE:
+                rcv_data, addr = udp_sock.recvfrom(FILE_PACK_SIZE + HEADER_SIZE)
+                if rcv_data == b"":
+                    return False
+                data += rcv_data
+            if data == "":
                 return False
+            if not file_open:
+                f_write = open(fullname, 'wb')
+                file_open = True
 
             header = data[:HEADER_SIZE].decode()
             pack_size = int(header[:9])
             pack_cnt = int(header[10:18])
             pack_checksum = header[19:]
             bin_data = data[HEADER_SIZE:]
-
             m = hashlib.md5()
             m.update(bin_data)
             checksum = m.hexdigest()
 
             if checksum != pack_checksum:
+                checksum_error = True
                 udp_log("client", "Checksum error pack " + str(pack_cnt))
-                continue
+            file_pos += pack_size
+            if file_pos >= size:
+                done = True
 
-            if pack_cnt == expected_packet:
+            if DEBUG and LOG_ALL:
+                udp_log("client", "Just got part %d file with %d bytes pos = %d header %s " % (
+                    pack_cnt, len(bin_data), file_pos, header))
+
+            if pack_cnt - 1 == last:
                 f_write.write(bin_data)
-                file_pos += pack_size
-                expected_packet += 1
-
-                if file_pos >= size:
-                    done = True
-
-                # Write any buffered packets that arrived out of order
-                while expected_packet in received_packets:
-                    f_write.write(received_packets[expected_packet])
-                    file_pos += len(received_packets[expected_packet])
-                    expected_packet += 1
-                    del received_packets[expected_packet]
-
+                last += 1
             else:
-                # Buffer out-of-order packets
-                received_packets[pack_cnt] = bin_data
+                keep[pack_cnt] = bin_data
+                if pack_cnt > max:
+                    max = pack_cnt
+            last = move_old_to_file(f_write, last, max, keep)
+        if file_open:
+            f_write.close()
+        if done:
+            if os.path.isfile(fullname):
+                if os.path.getsize(fullname) == size:
+                    if not checksum_error:
+                        all_ok = True
 
     except socket.error as e:
         udp_log("client", "Failed to receive: " + str(e.errno) + str(e))
         return False
 
-    f_write.close()
-
-    if file_pos == size:
+    if all_ok:
         udp_log("client", "UDP Download Done " + fullname + " len=" + str(size))
         return True
     else:
@@ -1075,7 +1086,6 @@ def move_old_to_file(f_data, last, max, keep):
     :return: The updated last packet number.
     """
     to_del = []
-
     for i in range(last + 1, max + 1):
         if i in keep.keys() and i - 1 == last:
             f_data.write(keep[i])
