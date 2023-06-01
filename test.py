@@ -4,10 +4,14 @@ import audiosegment
 import os
 import glob
 from pydub import AudioSegment"""
+<<<<<<< HEAD
 import contextlib
 import os.path
 
 # import pytube.exceptions
+=======
+import sqlCommands
+>>>>>>> main
 
 """
 url = input("please enter youtube link:")
@@ -26,6 +30,7 @@ import datetime
 import customtkinter as ctk
 print(str(datetime.datetime.now()))
 
+<<<<<<< HEAD
 class App(ctk.CTk):
     def __init__(self):
         ctk.set_appearance_mode("light")
@@ -257,3 +262,13 @@ def udp_file_recv(udp_sock, fullname, size):
     else:
         udp_log("client", "Something went wrong. Can't download " + fullname)
         return False
+=======
+"""
+"""
+users_database = sqlCommands.UserORM('server_database.db')
+verify = users_database.login('Agam8','12345678','127.0.0.1')
+print(verify)
+logout = users_database.logout('Agam8')
+"""
+print("LOG_BACK|OK"[-2:])
+>>>>>>> main
