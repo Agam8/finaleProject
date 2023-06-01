@@ -10,7 +10,6 @@ import time
 from sys import argv
 
 import sqlCommands
-from objects import Token
 from tcp_by_size import send_with_size, recv_by_size
 
 TCP_PORT = 8888
@@ -24,6 +23,27 @@ token_lock = threading.Lock()
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 SERVER_IP = ''
 
+class Token():
+    def __init__(self, token, start_time):
+        self.token = token
+        self.start_time = start_time
+        self.ack = False
+        self.handling = False
+
+    def is_ack(self):
+        return self.ack
+
+    def set_ack(self):
+        self.ack = True
+
+    def in_handle(self):
+        return self.handling
+
+    def set_handle(self):
+        self.handling = True
+
+    def __str__(self):
+        return self.token + "~" + str(self.start_time)
 
 def create_token():
     """
@@ -92,6 +112,7 @@ def handle_token(cli_ip, sock):
             data = "SENDTK"
             to_send = do_action(data, cli_ip)
             send_with_size(sock, to_send)
+            time.sleep(0.5)
 
 
 def handle_client(sock, tid, cli_ip):
@@ -138,15 +159,18 @@ def handle_client(sock, tid, cli_ip):
         except socket.error as err:
             if err.errno == 10054:
                 # 'Connection reset by peer'
-                print("Error %d Client is Gone. %s reset by peer." % (err.errno, str(client_socket)))
+                print(f"connection reset by client {cli_ip}. loging out user: {username}")
+                users_database.logout(username)
                 break
             else:
                 print("%d General Sock Error Client %s disconnected" % (err.errno, str(client_socket)))
+                users_database.logout(username)
                 break
 
         except Exception as err:
             print("General Error:", err)
             break
+
     token_server.join()
     users_database.logout(username)
     sock.close()
