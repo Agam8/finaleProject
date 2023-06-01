@@ -9,6 +9,7 @@ import threading, os
 from tcp_by_size import send_with_size, recv_by_size
 from sys import argv
 from objects import Song
+from tkinter import messagebox
 import customtkinter as ctk
 import tkinter as tk
 from PIL import Image
@@ -70,7 +71,7 @@ class App(ctk.CTk):
         :return: none
         """
         global exit_all
-        if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
+        if messagebox.askokcancel("Quit", "Do you want to quit?"):
             for child in self.winfo_children():
                 child.destroy()
             self.destroy()
@@ -124,7 +125,7 @@ class MainApp(ctk.CTkFrame):
                 break
             if data == "":
                 print("seems server DC")
-                tk.messagebox.showerror('Error', 'Server Disconnected')
+                messagebox.showerror('Error', 'Server Disconnected')
                 exit_all = True
                 break
             if len(data) < 6:
@@ -180,9 +181,9 @@ class MainApp(ctk.CTkFrame):
             print("Run udp client to download the file " + fname + " from " + fip)
             udp_cli.join()
             if md5 in local_files.keys():
-                tk.messagebox.showinfo('Download Status', f'{fname} downloaded succesfully from {fip}')
+                messagebox.showinfo('Download Status', f'{fname} downloaded succesfully from {fip}')
             else:
-                tk.messagebox.showerror('Download Status', f"{fname} couldn't be downloaded. Please Try again later")
+                messagebox.showerror('Download Status', f"{fname} couldn't be downloaded. Please Try again later")
 
         elif action == "SENDTK":  # server sends to listening client
             token = fields[0]
@@ -198,7 +199,7 @@ class MainApp(ctk.CTkFrame):
             print("Server answer and Live")
 
         elif action == "ERRORS":
-            tk.messagebox.showerror(f"Error {fields[0]}", fields[1])
+            messagebox.showerror(f"Error {fields[0]}", fields[1])
 
         else:
             print("Unknown action back " + action)
@@ -507,7 +508,7 @@ class LocalFiles(ctk.CTkFrame):
         md5 = hashlib.md5(open(os.path.join(CLI_PATH, file_name), 'rb').read()).hexdigest()
         if md5 not in local_files.keys() and song_name != '' and artist != '' and genre != '':
             if "'" in song_name or "'" in artist or "'" in genre:
-                tk.messagebox.showwarning('Warning',
+                messagebox.showwarning('Warning',
                                           "The song information contains non valid chars and cannot be saved")
                 return
             local_files[md5] = Song(md5, file_name, song_name, artist, genre, USERNAME,
@@ -527,7 +528,7 @@ class LocalFiles(ctk.CTkFrame):
         if len(local_files) == len(self.files_list):
             self.master.switch_frame(MainApp)
         else:
-            tk.messagebox.showerror('Error', 'Please fill out all spaces before continue')
+            messagebox.showerror('Error', 'Please fill out all spaces before continue')
 
 
 class SearchResult(ctk.CTkScrollableFrame):
@@ -775,7 +776,7 @@ class Login(ctk.CTkFrame):
                 self.username = self.username_entry.get()
                 password = self.password_entry.get()
                 """if not self.valid_pass(password):
-                    tk.messagebox.showerror('Error',
+                    messagebox.showerror('Error',
                                             'The Password you have submitted is invalid. Password must follow these guidelines:'
                                             '\n• Must contain at least 8 chars'
                                             '\n• Must contain 1 uppercase letter, 1 lower case letter and 1 digit'
