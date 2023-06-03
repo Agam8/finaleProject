@@ -85,11 +85,13 @@ class MainApp(ctk.CTkFrame):
         initates the main screen of the platform
         :param master: a ctk.CTk master class
         """
-        print(local_files)
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
+        self.share_files()
+        print('shared files')
+
         self.udp_srv = threading.Thread(target=udp_server)
         self.udp_srv.start()
         time.sleep(0.3)
@@ -102,7 +104,6 @@ class MainApp(ctk.CTkFrame):
         self.search_progress = ctk.CTkProgressBar(self)
         self.search_label = ctk.CTkLabel(self, text=f'')
 
-        self.share_files()
         title_label = ctk.CTkLabel(self, text='Welcome to Agamusic!', font=(FONT, 24))
         title_label.pack(pady=10)
         self.search_entry = ctk.CTkEntry(self, font=(FONT, 14))
@@ -243,7 +244,7 @@ class MainApp(ctk.CTkFrame):
         handles the upload of shared files information
         :return: none
         """
-        to_send = "UPLOAD|" + str(len(local_files)) + "|"+ USERNAME
+        to_send = "UPLOAD|" + str(len(local_files)) + "|" + USERNAME
         for file, song in local_files.items():
             to_send += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
         send_with_size(self.cli_s, to_send)
@@ -429,7 +430,7 @@ class SongWindow(ctk.CTkToplevel):
         self.current_lbl.configure(text=f"{int(self.current_sec // 60):02d}:{int(self.current_sec % 60):02d}/"
                                         f"{int(self.audio_length // 60):02d}:{int(self.audio_length % 60):02d}")
 
-        self.after_id = self.current_lbl.after(5, self.update_lbl)
+        self.after_id = self.current_lbl.after(100, self.update_lbl)
         if self.audio_length != 0:
             current_progress = self.current_sec / self.audio_length
             self.play_bar.set(current_progress)
@@ -444,58 +445,63 @@ class LocalFiles(ctk.CTkFrame):
         self.all_files = [f for f in os.listdir(CLI_PATH) if
                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
         print('len of all files: ',len(self.all_files))
-
-        self.client_orm = ClientORM(USERNAME, CLI_PATH)
-        if len(self.all_files) == 0:
-            master.switch_frame(MainApp)
-            return
-        self.not_saved_files, self.existing_files = self.client_orm.check_files_in_table(self.all_files)
-        self.save_existing_to_local()
-        if len(self.not_saved_files) == 0:
-            master.switch_frame(MainApp)
-            return
-
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
+        self.client_orm = ClientORM(USERNAME, CLI_PATH)
 
-        title_label = ctk.CTkLabel(self, text='Add Local Files', font=(FONT, 18))
-        title_label.pack(pady=10)
+        if len(self.all_files) == 0:
+            print('no files are in dir')
+            self.continue_to_main()
+            return
 
-        # Create a table to display the song information
-        table_frame = ctk.CTkFrame(self)
-        table_frame.pack(pady=10)
+        self.not_saved_files, self.existing_files = self.client_orm.check_files_in_table(self.all_files)
+        self.save_existing_to_local()
 
-        # Create the headers for the table
-        headers = ['File Name', 'Song Name', 'Artist', 'Genre']
-        for i, header in enumerate(headers):
-            header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 12), padx=10, pady=5)
-            header_label.grid(row=0, column=i, sticky='w')
+        if len(self.not_saved_files) == 0 or len(self.all_files) == 0:
+            no_new_files_title = ctk.CTkLabel(self, text='No New Files To Add', font=(FONT, 18))
+            no_new_files_title.pack(pady=10)
+            continue_button = ctk.CTkButton(self, text='Continue', font=(FONT, 12), command=self.continue_to_main)
+            continue_button.pack(pady=10)
 
-        # Add the rows to the table for each local file
-        for i, file_name in enumerate(self.not_saved_files):
-            # Create the labels for the file name, song name, artist, and genre
-            file_name_label = ctk.CTkLabel(table_frame, text=file_name, font=(FONT, 12), padx=10, pady=5)
-            file_name_label.grid(row=i + 1, column=0, sticky='w')
+        else:
+            title_label = ctk.CTkLabel(self, text='Add Local Files', font=(FONT, 18))
+            title_label.pack(pady=10)
 
-            song_name_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
-            song_name_entry.grid(row=i + 1, column=1, sticky='w')
+            # Create a table to display the song information
+            table_frame = ctk.CTkFrame(self)
+            table_frame.pack(pady=10)
 
-            artist_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
-            artist_entry.grid(row=i + 1, column=2, sticky='w')
+            # Create the headers for the table
+            headers = ['File Name', 'Song Name', 'Artist', 'Genre']
+            for i, header in enumerate(headers):
+                header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 12), padx=10, pady=5)
+                header_label.grid(row=0, column=i, sticky='w')
 
-            genre_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
-            genre_entry.grid(row=i + 1, column=3, sticky='w')
+            # Add the rows to the table for each local file
+            for i, file_name in enumerate(self.not_saved_files):
+                # Create the labels for the file name, song name, artist, and genre
+                file_name_label = ctk.CTkLabel(table_frame, text=file_name, font=(FONT, 12), padx=10, pady=5)
+                file_name_label.grid(row=i + 1, column=0, sticky='w')
 
-            # Save the information when the user clicks the save button
-            save_button = ctk.CTkButton(table_frame, text='Save', font=(FONT, 12),
-                                        command=lambda f=file_name, sn=song_name_entry, a=artist_entry,
-                                                       g=genre_entry: self.save_song_info(f, sn.get(), a.get(),
-                                                                                          g.get()))
-            save_button.grid(row=i + 1, column=4, padx=10)
+                song_name_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
+                song_name_entry.grid(row=i + 1, column=1, sticky='w')
 
-        continue_button = ctk.CTkButton(self, text='Continue', font=(FONT, 12), command=self.continue_to_main)
-        continue_button.place(relx=0.4, rely=0.7)
+                artist_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
+                artist_entry.grid(row=i + 1, column=2, sticky='w')
+
+                genre_entry = ctk.CTkEntry(table_frame, font=(FONT, 12))
+                genre_entry.grid(row=i + 1, column=3, sticky='w')
+
+                # Save the information when the user clicks the save button
+                save_button = ctk.CTkButton(table_frame, text='Save', font=(FONT, 12),
+                                            command=lambda f=file_name, sn=song_name_entry, a=artist_entry,
+                                                           g=genre_entry: self.save_song_info(f, sn.get(), a.get(),
+                                                                                              g.get()))
+                save_button.grid(row=i + 1, column=4, padx=10)
+
+            continue_button = ctk.CTkButton(self, text='Continue', font=(FONT, 12), command=self.continue_to_main)
+            continue_button.place(relx=0.4, rely=0.7)
 
     def save_existing_to_local(self):
         global local_files
@@ -532,10 +538,13 @@ class LocalFiles(ctk.CTkFrame):
         this function checks that all information was saved and switches over to main frame
         :return: none
         """
-        if len(local_files) == (len(self.not_saved_files) + len(self.existing_files)):
+        if len(self.all_files)==0 or len(local_files) == (len(self.not_saved_files) + len(self.existing_files)):
             self.client_orm.save_all_songs(local_files)
             self.master.switch_frame(MainApp)
         else:
+            error_label = ctk.CTkLabel(self, text='Please fill out all fields before continuing.', font=(FONT, 12),
+                                       padx=10, pady=5)
+            error_label.pack(pady=10)
             messagebox.showerror('Error', 'Please fill out all spaces before continue')
 
 
@@ -576,7 +585,6 @@ class SearchResult(ctk.CTkScrollableFrame):
             for f in fields:
                 info = f.split("~")
                 md5 = info[0]
-                print(info)
                 file_name = ctk.CTkLabel(table_frame, text=info[1], font=(FONT, 14), padx=10, pady=2, wraplength=150)
                 file_name.grid(row=i + 1, column=0, sticky='w', pady=10)
 
@@ -595,9 +603,7 @@ class SearchResult(ctk.CTkScrollableFrame):
                 username_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,
                                               wraplength=150)
                 username_label.grid(row=i + 1, column=5, sticky='w', pady=10)
-                print(info[7])
                 if info[7] == 'True':
-                    print('got to available')
                     download_button = ctk.CTkButton(table_frame, command=lambda f=md5: self.get_file(f),
                                                     text='Download!', font=(FONT, 14))
                 else:

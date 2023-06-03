@@ -232,7 +232,6 @@ class UserORM():
         row = res.fetchone()
         if row is not None:
             username = row[0]
-            print('username',username)
             if req_user == username:
                 self.close_DB()
                 return False
@@ -398,7 +397,7 @@ class SongsORM():
         print("Got %d files" % length)
         try:
             existing_md5s = self.get_md5s_by_username(username)
-            new_md5s = []
+            md5_available = []
 
             for i in range(1,length+1):
                 info = fields[i + 1].split("~")
@@ -408,12 +407,12 @@ class SongsORM():
                     new_song = Song(md5, info[1], info[2], info[3], info[4], info[5], cli_ip, info[6])
                     self.add_song(new_song)
                     print("Got new file: " + str(new_song))
-                    new_md5s.append(md5)
                 else:
                     print("File already exists: " + info[1])
+                md5_available.append(md5)
 
             # Delete MD5s that were not uploaded by the same username
-            md5s_to_delete = [md5 for md5 in existing_md5s if md5 not in new_md5s]
+            md5s_to_delete = [md5 for md5 in existing_md5s if md5 not in md5_available]
             self.delete_songs_by_md5s(md5s_to_delete)
         except Exception as e:
             print("Adding client's folder threw an exception:", e)
@@ -526,11 +525,9 @@ def main():
     else:
         for song in songs:
             is_available = users_orm.is_available(song.md5, fields[1])
-            print(is_available)
             answer += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~" \
                       f"{song.committed_user}~{is_available}"
     to_send = answer
-    print(answer)
 
     # create a song object and add it to the songs table
     # song = Song('song_file.mp3', 'Song Name', 'Artist Name',  'Pop', '192.168.0.1', '1024')

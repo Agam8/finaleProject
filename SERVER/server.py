@@ -217,7 +217,6 @@ def do_action(data, cli_ip):
             else:
                 for song in songs:
                     is_available = users_database.is_available(song.md5, fields[1])
-                    print('is available ', is_available)
                     answer += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{song.size}~" \
                               f"{song.committed_user}~{is_available}"
             to_send = answer
