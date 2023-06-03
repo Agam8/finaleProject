@@ -8,7 +8,7 @@ import string
 import threading
 import time
 from sys import argv
-
+from objects import Token
 import sqlCommands
 from tcp_by_size import send_with_size, recv_by_size
 
@@ -23,27 +23,6 @@ token_lock = threading.Lock()
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 SERVER_IP = ''
 
-class Token():
-    def __init__(self, token, start_time):
-        self.token = token
-        self.start_time = start_time
-        self.ack = False
-        self.handling = False
-
-    def is_ack(self):
-        return self.ack
-
-    def set_ack(self):
-        self.ack = True
-
-    def in_handle(self):
-        return self.handling
-
-    def set_handle(self):
-        self.handling = True
-
-    def __str__(self):
-        return self.token + "~" + str(self.start_time)
 
 def create_token():
     """
@@ -64,17 +43,18 @@ def login(client_socket, cli_ip):
     tries = 5
     logged = False
     username = ''
-    data = recv_by_size(client_socket)
 
-    if data == "":
-        print("Error: Seems Client DC")
-        return False, ''
+    data = recv_by_size(client_socket)
     while data[:6] == 'SIGNUP':
         if data == "":
             print("Error: Seems Client DC")
             return False, ''
         to_send = do_action(data, cli_ip)
-        send_with_size(client_socket, to_send)
+        if to_send[-2:] == 'OK':
+            logged = True
+            username = data.split('|')[1]
+            send_with_size(client_socket, to_send)
+            break
         data = recv_by_size(client_socket)
 
     while not logged:
@@ -153,8 +133,6 @@ def handle_client(sock, tid, cli_ip):
 
             to_send = do_action(data, cli_ip)
             send_with_size(client_socket, to_send)
-            if to_send == 'LGO_BACK':
-                login(client_socket, cli_ip)
 
         except socket.error as err:
             if err.errno == 10054:
@@ -203,6 +181,7 @@ def do_action(data, cli_ip):
                 to_send = 'LOGGED' + "|" + "OK"
             else:
                 to_send = 'LOGGED' + "|" + "NO"
+
         elif action == "SIGNUP":
             username = fields[0]
             password = fields[1]

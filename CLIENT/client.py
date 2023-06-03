@@ -33,7 +33,7 @@ CLI_PATH = ''
 local_files = {}
 SAVED_FILES = False
 FONT = 'Yu Gothic UI'
-error_handler = None
+client_orm = ClientORM()
 
 
 class App(ctk.CTk):
@@ -43,7 +43,7 @@ class App(ctk.CTk):
         :param cli_s: client's socket
         :param cli_path: client's path to local shared folder
         """
-        global CLI_PATH, error_handler
+        global CLI_PATH
         ctk.CTk.__init__(self)
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme('green')
@@ -326,7 +326,7 @@ class SongWindow(ctk.CTkToplevel):
         self.song_name = song_name
         self.geometry("400x300")
         self.title(f"{song_name}")
-
+        self.protocol("WM_DELETE_WINDOW", self.stop)
         self.label = ctk.CTkLabel(self, text=f"Playing {self.song_name}", font=(FONT, 14))
         self.label.pack(padx=20, pady=20)
         self.current_lbl = ctk.CTkLabel(self, text="00:00/00:00", font=(FONT, 14))
@@ -361,7 +361,6 @@ class SongWindow(ctk.CTkToplevel):
         with wave.open(self.file, "rb") as wf:
 
             self.audio_length = wf.getnframes() / float(wf.getframerate())
-            self.play_bar.configure(indeterminate_speed=1 / self.audio_length)
             stream = p.open(format=
                             p.get_format_from_width(wf.getsampwidth()),
                             channels=wf.getnchannels(),
@@ -421,6 +420,7 @@ class SongWindow(ctk.CTkToplevel):
         if self.after_id:
             self.current_lbl.after_cancel(self.after_id)
         self.after_id = None
+        self.destroy()
 
     def update_lbl(self):
         """
@@ -430,10 +430,11 @@ class SongWindow(ctk.CTkToplevel):
         self.current_lbl.configure(text=f"{int(self.current_sec // 60):02d}:{int(self.current_sec % 60):02d}/"
                                         f"{int(self.audio_length // 60):02d}:{int(self.audio_length % 60):02d}")
 
-        self.after_id = self.current_lbl.after(100, self.update_lbl)
         if self.audio_length != 0:
             current_progress = self.current_sec / self.audio_length
             self.play_bar.set(current_progress)
+
+        self.after_id = self.current_lbl.after(100, self.update_lbl)
 
 
 class LocalFiles(ctk.CTkFrame):
@@ -442,20 +443,15 @@ class LocalFiles(ctk.CTkFrame):
         initiates the local file loading screen that gets input from the user about their shared files
         :param master: the master ctk.CTk class
         """
+        global client_orm
         self.all_files = [f for f in os.listdir(CLI_PATH) if
                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
         print('len of all files: ',len(self.all_files))
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        self.client_orm = ClientORM(USERNAME, CLI_PATH)
-
-        if len(self.all_files) == 0:
-            print('no files are in dir')
-            self.continue_to_main()
-            return
-
-        self.not_saved_files, self.existing_files = self.client_orm.check_files_in_table(self.all_files)
+        client_orm.set_username_path(USERNAME,CLI_PATH)
+        self.not_saved_files, self.existing_files = client_orm.check_files_in_table(self.all_files)
         self.save_existing_to_local()
 
         if len(self.not_saved_files) == 0 or len(self.all_files) == 0:
@@ -538,8 +534,9 @@ class LocalFiles(ctk.CTkFrame):
         this function checks that all information was saved and switches over to main frame
         :return: none
         """
+        global client_orm
         if len(self.all_files)==0 or len(local_files) == (len(self.not_saved_files) + len(self.existing_files)):
-            self.client_orm.save_all_songs(local_files)
+            client_orm.save_all_songs(local_files)
             self.master.switch_frame(MainApp)
         else:
             error_label = ctk.CTkLabel(self, text='Please fill out all fields before continuing.', font=(FONT, 12),
@@ -802,7 +799,6 @@ class Login(ctk.CTkFrame):
                 if auth_result[-2:] == 'OK':
                     self.logged = True
                     USERNAME = self.username.lower()
-                    LOGGED = True
                     print('logging in')
                 elif auth_result == "GOODBY":
                     tk.messagebox.showerror('Error', 'Exceeded maximum tries. Please try to log in later')
@@ -1002,7 +998,9 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
         if saved:
             check_md5 = hashlib.md5(open(fn, 'rb').read()).hexdigest()
             if check_md5 == md5:
-                local_files[md5] = Song(fn, song_name, artist, genre, USERNAME, md5, size=size)
+                new_song = Song(md5, fn, song_name, artist, genre, USERNAME, size=size)
+                local_files[md5] = new_song
+                client_orm.add_song(new_song)
             else:
                 print('md5 of file is wrong', check_md5, md5)
 

@@ -6,18 +6,21 @@ import hashlib
 
 
 class ClientORM():
-    def __init__(self, username, cli_path):
+    def __init__(self):
         """
         Initializes the SongsORM object.
 
         :param db_file: The path to the SQLite database file.
         """
-        self.db_file = os.path.join(cli_path, f'{username}_songs_table.db')
+        self.db_file = ''
         self.conn = None
         self.cursor = None
 
-        self.username=username
-        self.cli_path=cli_path
+    def set_username_path(self, username, cli_path):
+        self.username = username
+        self.cli_path = cli_path
+        self.db_file = os.path.join(cli_path, f'{username}_songs_table.db')
+
     def open_DB(self):
         """
         Opens a connection to the database.
@@ -74,7 +77,7 @@ class ClientORM():
 
         return files_not_exist, files_in_table
 
-    def save_all_songs(self,files_dict):
+    def save_all_songs(self, files_dict):
         """
         getting a files dictionery that contains {md5:Song object,...} to be saved in the table
         :param files_dict:
@@ -93,7 +96,7 @@ class ClientORM():
                 else:
                     # Insert the song information into the table
                     self.cursor.execute("INSERT INTO client_songs VALUES (?, ?, ?, ?, ?, ?)",
-                                   (song.md5, song.file_name, song.song_name, song.artist, song.genre, song.size))
+                                        (song.md5, song.file_name, song.song_name, song.artist, song.genre, song.size))
 
             # Remove MD5 entries that don't exist in the given files path's list
             for md5 in existing_md5s:
@@ -111,13 +114,30 @@ class ClientORM():
             self.close_DB()
             return False
 
+    def add_song(self, song):
+        try:
+            self.open_DB()
+            self.cursor.execute("INSERT INTO client_songs VALUES (?, ?, ?, ?, ?, ?)",
+                                (song.md5, song.file_name, song.song_name, song.artist, song.genre, song.size))
+            self.commit()
+            self.close_DB()
+            return True
+        except Exception as e:
+            print(e)
+            # Rollback changes and close the connection
+            self.conn.rollback()
+            self.close_DB()
+            return False
+
 
 def main():
-    CLI_PATH='client_songs'
+    CLI_PATH = 'client_songs'
     all_files = [f for f in os.listdir(CLI_PATH) if
-                      os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
-    client_orm = ClientORM('agam8',CLI_PATH)
-    not_existing,existing = client_orm.check_files_in_table(all_files)
-    print(not_existing,existing)
-if __name__=='__main__':
+                 os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
+    client_orm = ClientORM('agam8', CLI_PATH)
+    not_existing, existing = client_orm.check_files_in_table(all_files)
+    print(not_existing, existing)
+
+
+if __name__ == '__main__':
     main()
