@@ -292,10 +292,35 @@ class SongsORM():
             self.cursor.execute("""
                 INSERT INTO songs (
                     md5, file_name, song_name, artist, genre, committed_user, ip, size
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 song.md5, song.file_name, song.song_name, song.artist, song.genre, song.committed_user, song.ip,
                 song.size))
+            self.commit()
+            self.close_DB()
+            return True
+        except Exception as e:
+            print(e)
+            self.close_DB()
+            return False
+
+    def add_songs(self, songs_list):
+        """
+        Adds a song to the database.
+
+        :param song: The Song object to be added.
+        :return: True if the song is successfully added, False otherwise.
+        """
+        self.open_DB()
+        try:
+            for song in songs_list:
+                self.cursor.execute("""
+                    INSERT INTO songs (
+                        md5, file_name, song_name, artist, genre, committed_user, ip, size
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    song.md5, song.file_name, song.song_name, song.artist, song.genre, song.committed_user, song.ip,
+                    song.size))
             self.commit()
             self.close_DB()
             return True
@@ -312,19 +337,6 @@ class SongsORM():
         """
         self.open_DB()
         self.cursor.execute("SELECT * FROM songs;")
-        rows = self.cursor.fetchall()
-        self.close_DB()
-        return [Song(*row) for row in rows]
-
-    def get_songs_by_name(self, name):
-        """
-        Retrieves songs from the database based on a given name.
-
-        :param name: The name to search for.
-        :return: A list of Song objects that match the given name.
-        """
-        self.open_DB()
-        self.cursor.execute("SELECT * FROM songs WHERE song_name LIKE ?;", ('%' + name + '%',))
         rows = self.cursor.fetchall()
         self.close_DB()
         return [Song(*row) for row in rows]
@@ -378,26 +390,72 @@ class SongsORM():
 
         :param fields: The information about the songs.
         :param cli_ip: The IP address of the client.
+        :param username: The username of the client.
         :return: None
         """
         length = int(fields[0])
+        username = fields[1]
         print("Got %d files" % length)
         try:
-            for i in range(length):
-                info = fields[i + 1].split("~")
-                print('song ', i + 1, ':', info)
+            existing_md5s = self.get_md5s_by_username(username)
+            new_md5s = []
 
-                exists = self.song_exists(info[0])
-                print(info[0], " exists: ", exists)
+            for i in range(1,length+1):
+                info = fields[i + 1].split("~")
+                md5 = info[0]
+                exists = self.song_exists(md5)
                 if not exists:
-                    new_song = Song(info[0], info[1], info[2], info[3], info[4], info[5], cli_ip, info[6])
+                    new_song = Song(md5, info[1], info[2], info[3], info[4], info[5], cli_ip, info[6])
                     self.add_song(new_song)
-                    print("got new file" + str(new_song))
+                    print("Got new file: " + str(new_song))
+                    new_md5s.append(md5)
                 else:
-                    print("file already exists: " + info[1])
+                    print("File already exists: " + info[1])
+
+            # Delete MD5s that were not uploaded by the same username
+            md5s_to_delete = [md5 for md5 in existing_md5s if md5 not in new_md5s]
+            self.delete_songs_by_md5s(md5s_to_delete)
         except Exception as e:
-            print("adding client's folder threw an exception: ", e)
-        print("Length of files " + str(self.count_songs()))
+            print("Adding client's folder threw an exception:", e)
+
+        print("Length of files:", self.count_songs())
+
+    def get_md5s_by_username(self, username):
+        """
+        Retrieves the MD5 values associated with a given username.
+
+        :param username: The username of the user.
+        :return: A list of MD5 values.
+        """
+        self.open_DB()
+        md5s = []
+        try:
+            sql = f"SELECT md5 FROM songs WHERE committed_user='{username}';"
+            self.cursor.execute(sql)
+            rows = self.cursor.fetchall()
+            md5s = [row[0] for row in rows]
+        except Exception as e:
+            print("Error retrieving MD5s by username:", e)
+        self.close_DB()
+        return md5s
+
+    def delete_songs_by_md5s(self, md5s):
+        """
+        Deletes songs from the database based on their MD5 values.
+
+        :param md5s: A set of MD5 values.
+        :return: None
+        """
+        try:
+            self.open_DB()
+            for md5 in md5s:
+                sql = f"DELETE FROM songs WHERE md5='{md5}';"
+                self.cursor.execute(sql)
+            self.commit()
+            self.close_DB()
+            print("Deleted songs with MD5s:", md5s)
+        except Exception as e:
+            print("Error deleting songs:", e)
 
     def search_songs(self, keyword):
         """

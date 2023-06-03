@@ -15,6 +15,7 @@ import tkinter as tk
 from PIL import Image
 import wave
 import pyaudio
+from sqlclient import ClientORM
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 DEBUG = True
@@ -26,7 +27,6 @@ UDP_PORT = 7777
 TCP_PORT = 8888
 FILE_PACK_SIZE = 1000
 HEADER_SIZE = 9 + 1 + 8 + 1 + 32
-LOGGED = False
 USERNAME = ''
 exit_all = False
 CLI_PATH = ''
@@ -85,6 +85,7 @@ class MainApp(ctk.CTkFrame):
         initates the main screen of the platform
         :param master: a ctk.CTk master class
         """
+        print(local_files)
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.cli_s = master.cli_s
@@ -242,7 +243,7 @@ class MainApp(ctk.CTkFrame):
         handles the upload of shared files information
         :return: none
         """
-        to_send = "UPLOAD|" + str(len(local_files))
+        to_send = "UPLOAD|" + str(len(local_files)) + "|"+ USERNAME
         for file, song in local_files.items():
             to_send += f"|{song.md5}~{song.file_name}~{song.song_name}~{song.artist}~{song.genre}~{USERNAME}~{song.size}"
         send_with_size(self.cli_s, to_send)
@@ -437,18 +438,23 @@ class SongWindow(ctk.CTkToplevel):
 class LocalFiles(ctk.CTkFrame):
     def __init__(self, master):
         """
-        initates the local file loading screen that gets input from the user about their shared files
+        initiates the local file loading screen that gets input from the user about their shared files
         :param master: the master ctk.CTk class
         """
-        print('got to local files')
-        self.files_list = [f for f in os.listdir(CLI_PATH) if
-                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
-        print(self.files_list)
-        if len(self.files_list) == 0:
-            print('len is 0')
+        self.all_files = [f for f in os.listdir(CLI_PATH) if
+                          os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
+        print('len of all files: ',len(self.all_files))
+
+        self.client_orm = ClientORM(USERNAME, CLI_PATH)
+        if len(self.all_files) == 0:
             master.switch_frame(MainApp)
-            print('switched to main')
             return
+        self.not_saved_files, self.existing_files = self.client_orm.check_files_in_table(self.all_files)
+        self.save_existing_to_local()
+        if len(self.not_saved_files) == 0:
+            master.switch_frame(MainApp)
+            return
+
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
@@ -466,12 +472,8 @@ class LocalFiles(ctk.CTkFrame):
             header_label = ctk.CTkLabel(table_frame, text=header, font=(FONT, 12), padx=10, pady=5)
             header_label.grid(row=0, column=i, sticky='w')
 
-        # Get the local files in the directory
-        self.files_list = [f for f in os.listdir(CLI_PATH) if
-                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
-        print(self.files_list)
         # Add the rows to the table for each local file
-        for i, file_name in enumerate(self.files_list):
+        for i, file_name in enumerate(self.not_saved_files):
             # Create the labels for the file name, song name, artist, and genre
             file_name_label = ctk.CTkLabel(table_frame, text=file_name, font=(FONT, 12), padx=10, pady=5)
             file_name_label.grid(row=i + 1, column=0, sticky='w')
@@ -495,6 +497,11 @@ class LocalFiles(ctk.CTkFrame):
         continue_button = ctk.CTkButton(self, text='Continue', font=(FONT, 12), command=self.continue_to_main)
         continue_button.place(relx=0.4, rely=0.7)
 
+    def save_existing_to_local(self):
+        global local_files
+        for file in self.existing_files:
+            local_files[file.md5] = file
+
     def save_song_info(self, file_name, song_name, artist, genre):
         """
         saves the inputted song's information to local_files
@@ -504,12 +511,12 @@ class LocalFiles(ctk.CTkFrame):
         :param genre: the genre of the song
         :return:  none
         """
-        global local_files, SAVED_FILES
+        global local_files
         md5 = hashlib.md5(open(os.path.join(CLI_PATH, file_name), 'rb').read()).hexdigest()
         if md5 not in local_files.keys() and song_name != '' and artist != '' and genre != '':
             if "'" in song_name or "'" in artist or "'" in genre:
                 messagebox.showwarning('Warning',
-                                          "The song information contains non valid chars and cannot be saved")
+                                       "The song information contains non valid chars and cannot be saved")
                 return
             local_files[md5] = Song(md5, file_name, song_name, artist, genre, USERNAME,
                                     size=os.path.getsize(os.path.join(CLI_PATH, file_name)))
@@ -525,7 +532,8 @@ class LocalFiles(ctk.CTkFrame):
         this function checks that all information was saved and switches over to main frame
         :return: none
         """
-        if len(local_files) == len(self.files_list):
+        if len(local_files) == (len(self.not_saved_files) + len(self.existing_files)):
+            self.client_orm.save_all_songs(local_files)
             self.master.switch_frame(MainApp)
         else:
             messagebox.showerror('Error', 'Please fill out all spaces before continue')
@@ -690,7 +698,7 @@ class Signup(ctk.CTkFrame):
         handles the communication with the server when signing up
         :return: none
         """
-        global USERNAME, LOGGED
+        global USERNAME
         while not self.signed:
             self.username = self.username_entry.get()
             password = self.password_entry.get()
@@ -706,8 +714,7 @@ class Signup(ctk.CTkFrame):
             result = recv_by_size(self.cli_s)
             if result[-2:] == 'OK':
                 self.signed = True
-                LOGGED = True
-                USERNAME = self.username
+                USERNAME = self.username.lower()
             elif result[-2:] == 'NO':
                 tk.messagebox.showerror('Error',
                                         'Username already exists or is currently logged, please try a different user')
@@ -770,7 +777,7 @@ class Login(ctk.CTkFrame):
         handles the communication with the server when logging in
         :return: none
         """
-        global LOGGED, USERNAME
+        global USERNAME
         while not self.logged:
             try:
                 self.username = self.username_entry.get()
@@ -788,7 +795,7 @@ class Login(ctk.CTkFrame):
                 auth_result = recv_by_size(self.cli_s)
                 if auth_result[-2:] == 'OK':
                     self.logged = True
-                    USERNAME = self.username
+                    USERNAME = self.username.lower()
                     LOGGED = True
                     print('logging in')
                 elif auth_result == "GOODBY":
@@ -851,7 +858,7 @@ def udp_server():
     will get file request and will send Binary file data
     """
     global local_files
-    cli_path=CLI_PATH
+    cli_path = CLI_PATH
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     bind_ok = False
 
@@ -997,6 +1004,7 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
         if DEBUG:
             udp_log('client', "Send failed or size = 0")
     udp_sock.close()
+
 
 def udp_file_recv(udp_sock, fullname, size):
     """
