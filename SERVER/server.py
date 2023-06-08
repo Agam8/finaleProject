@@ -13,7 +13,7 @@ import sqlCommands
 from tcp_by_size import send_with_size, recv_by_size
 
 TCP_PORT = 8888
-DEBUG = True
+DEBUG = False
 exit_all = False
 songs_database = sqlCommands.SongsORM('server_database.db')
 users_database = sqlCommands.UserORM('server_database.db')

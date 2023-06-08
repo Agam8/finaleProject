@@ -405,7 +405,7 @@ class SongsORM():
                 if not exists:
                     new_song = Song(md5, info[1], info[2], info[3], info[4], info[5], cli_ip, info[6])
                     self.add_song(new_song)
-                    print("Got new file: " + str(new_song))
+                    print("Got new file: " + info[1])
                 else:
                     print("File already exists: " + info[1])
                 md5_available.append(md5)
@@ -451,7 +451,6 @@ class SongsORM():
                 self.cursor.execute(sql)
             self.commit()
             self.close_DB()
-            print("Deleted songs with MD5s:", md5s)
         except Exception as e:
             print("Error deleting songs:", e)
 

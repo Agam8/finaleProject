@@ -18,7 +18,7 @@ import pyaudio
 from sqlclient import ClientORM
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
-DEBUG = True
+DEBUG = False
 LOG_ALL = True
 token_dict = {}
 token_lock = threading.Lock()
@@ -90,7 +90,6 @@ class MainApp(ctk.CTkFrame):
         self.cli_s = master.cli_s
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
         self.share_files()
-        print('shared files')
 
         self.udp_srv = threading.Thread(target=udp_server)
         self.udp_srv.start()
@@ -448,7 +447,6 @@ class LocalFiles(ctk.CTkFrame):
         global client_orm
         self.all_files = [f for f in os.listdir(CLI_PATH) if
                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
-        print('len of all files: ', len(self.all_files))
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
@@ -801,7 +799,6 @@ class Login(ctk.CTkFrame):
                 if auth_result[-2:] == 'OK':
                     self.logged = True
                     USERNAME = self.username.lower()
-                    print('logging in')
                 elif auth_result == "GOODBY":
                     tk.messagebox.showerror('Error', 'Exceeded maximum tries. Please try to log in later')
                     self.destroy()
