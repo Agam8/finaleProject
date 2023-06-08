@@ -2,6 +2,8 @@ __author__ = 'Agam'
 
 import sqlite3
 import hashlib
+import random
+import string
 from objects import User, Song
 
 
@@ -35,6 +37,13 @@ class UserORM():
         """
         self.conn.commit()
 
+    def create_salt(self):
+        """
+        create a random 8 chars string that will be used for salted hashing
+        :return: 8 char string containing digits and letters
+        """
+        return ''.join((random.choice(string.ascii_letters + string.digits) for i in range(8)))
+
     def get_user_by_username(self, username: str):
         """
         Retrieves a user from the database based on the username.
@@ -65,8 +74,9 @@ class UserORM():
         sql = f"SELECT * FROM users WHERE username='{user.username}';"
         res = self.cursor.execute(sql)
         if res.fetchone() is None:
-            sql = f"INSERT INTO users (username, password, current_ip, is_logged) VALUES ('{user.username}', " \
-                  f"'{user.password}', '{user.current_ip}', '{user.is_logged}');"
+            salt = self.create_salt()
+            sql = f"INSERT INTO users (salt, username, password, current_ip, is_logged) VALUES ({salt}, '{user.username}'" \
+                  f", '{user.password}', '{user.current_ip}', '{user.is_logged}');"
             self.cursor.execute(sql)
             added = True
         self.close_DB()
@@ -89,19 +99,6 @@ class UserORM():
         self.close_DB()
         return exists
 
-    def update_user(self, user):
-        """
-        Updates a user's information in the database.
-
-        :param user: The updated user object.
-        :return: None
-        """
-        self.open_DB()
-        sql = f"UPDATE users SET password='{user.password}', current_ip='{user.current_ip}', " \
-              f"is_logged='{user.is_logged}' WHERE id={user.id};"
-        self.cursor.execute(sql)
-        self.close_DB()
-
     def login(self, username, password, ip):
         """
         Logs in a user with the provided username, password, and IP.
@@ -115,7 +112,8 @@ class UserORM():
         username = username.lower()
         user = self.get_user_by_username(username)
         if user is not None:
-            secure_pass = hashlib.sha256(password.encode()).hexdigest()
+            salt = user.salt
+            secure_pass = hashlib.sha256((salt + password).encode()).hexdigest()
             if user.password == secure_pass and user.is_logged == 0:
                 self.open_DB()
                 self.cursor.execute("UPDATE users SET current_ip=?, is_logged=? WHERE username=?",
@@ -141,13 +139,14 @@ class UserORM():
         username.lower()
         user = self.get_user_by_username(username)
         if user is None:
-            secure_pass = hashlib.sha256(password.encode()).hexdigest()
+            salt = self.create_salt()
+            secure_pass = hashlib.sha256((salt + password).encode()).hexdigest()
             self.open_DB()
             self.cursor.execute("""
                             INSERT INTO Users (
-                                username, password, current_ip, is_logged
-                            ) VALUES (?, ?, ?, ?)
-                        """, (username, secure_pass, cli_ip, 1))
+                                salt, username, password, current_ip, is_logged
+                            ) VALUES (?, ?, ?, ?, ?)
+                        """, (salt, username, secure_pass, cli_ip, 1))
             self.commit()
             self.close_DB()
             return True, 'OK'
@@ -399,7 +398,7 @@ class SongsORM():
             existing_md5s = self.get_md5s_by_username(username)
             md5_available = []
 
-            for i in range(1,length+1):
+            for i in range(1, length + 1):
                 info = fields[i + 1].split("~")
                 md5 = info[0]
                 exists = self.song_exists(md5)
@@ -474,7 +473,7 @@ class SongsORM():
         rows = res.fetchall()
 
         self.close_DB()
-        if len(rows)!= 0:
+        if len(rows) != 0:
             return [Song(*row) for row in rows]
         else:
             return []
@@ -515,11 +514,11 @@ def main():
     # create an instance of the SongsORM class and create the songs table
     songs_orm = SongsORM(r'server_database.db')
     users_orm = UserORM(r'server_database.db')
-    #print(len(songs_orm.search_songs('x')))
+    # print(len(songs_orm.search_songs('x')))
     # songs_orm.create_table()
-    fields=["jazz","agam8"]
+    fields = ["jazz", "agam8"]
     songs = songs_orm.search_songs(fields[0])
-    answer='SRCHBK'
+    answer = 'SRCHBK'
     if len(songs) == 0:
         answer += ''
     else:

@@ -26,7 +26,7 @@ play_lock = threading.Lock()
 UDP_PORT = 7777
 TCP_PORT = 8888
 FILE_PACK_SIZE = 1000
-HEADER_SIZE = 9 + 1 + 8 + 1 + 32
+HEADER_SIZE = 9 + 1 + 8 + 1 + 32  # 9: size of binary data 1:',' 8: packet number 1:',' 32: checksum of the packet data
 USERNAME = ''
 exit_all = False
 CLI_PATH = ''
@@ -186,9 +186,8 @@ class MainApp(ctk.CTkFrame):
                 messagebox.showinfo('Download Status', f'{fname} downloaded successfully from {fip}')
             else:
                 messagebox.showerror('Download Status', f"{fname} couldn't be downloaded. Please Try again")
-                if os.path.exists(os.path.join(CLI_PATH,fname)):
-                    os.remove(os.path.join(CLI_PATH,fname))
-
+                if os.path.exists(os.path.join(CLI_PATH, fname)):
+                    os.remove(os.path.join(CLI_PATH, fname))
 
         elif action == "SENDTK":  # server sends to listening client
             token = fields[0]
@@ -297,8 +296,8 @@ class ShowLibrary(ctk.CTkFrame):
             genre_label.grid(row=i + 1, column=2, sticky='w')
 
             play_button = ctk.CTkButton(table_frame, command=lambda fullname=os.path.join(CLI_PATH, song.file_name),
-                                                                    song_name=song.song_name:
-            self.open_toplevel(fullname, song_name), text=f'Play')
+                                                                    song_name=song.song_name: self.open_toplevel(
+                fullname, song_name), text=f'Play')
             play_button.grid(row=i + 1, column=3, sticky='w')
             i += 1
 
@@ -449,11 +448,11 @@ class LocalFiles(ctk.CTkFrame):
         global client_orm
         self.all_files = [f for f in os.listdir(CLI_PATH) if
                           os.path.isfile(os.path.join(CLI_PATH, f)) and f.endswith('.wav')]
-        print('len of all files: ',len(self.all_files))
+        print('len of all files: ', len(self.all_files))
         self.master = master
         ctk.CTkFrame.__init__(self, master)
         self.place(anchor='center', relx=0.5, rely=0.5, relheight=0.95, relwidth=0.95)
-        client_orm.set_username_path(USERNAME,CLI_PATH)
+        client_orm.set_username_path(USERNAME, CLI_PATH)
         self.not_saved_files, self.existing_files = client_orm.check_files_in_table(self.all_files)
         self.save_existing_to_local()
 
@@ -538,7 +537,7 @@ class LocalFiles(ctk.CTkFrame):
         :return: none
         """
         global client_orm
-        if len(self.all_files)==0 or len(local_files) == (len(self.not_saved_files) + len(self.existing_files)):
+        if len(self.all_files) == 0 or len(local_files) == (len(self.not_saved_files) + len(self.existing_files)):
             client_orm.save_all_songs(local_files)
             self.master.switch_frame(MainApp)
         else:
@@ -597,7 +596,7 @@ class SearchResult(ctk.CTkScrollableFrame):
                 genre_label = ctk.CTkLabel(table_frame, text=info[4], font=(FONT, 14), padx=10, pady=2, wraplength=150)
                 genre_label.grid(row=i + 1, column=3, sticky='w', pady=10)
 
-                size_label = ctk.CTkLabel(table_frame, text=info[5], font=(FONT, 14), padx=10, pady=2, wraplength=150)
+                size_label = ctk.CTkLabel(table_frame, text=f'{info[5]} KB', font=(FONT, 14), padx=10, pady=2, wraplength=150)
                 size_label.grid(row=i + 1, column=4, sticky='w', pady=10)
 
                 username_label = ctk.CTkLabel(table_frame, text=info[6], font=(FONT, 14), padx=10, pady=2,
@@ -708,13 +707,13 @@ class Signup(ctk.CTkFrame):
         while not self.signed:
             self.username = self.username_entry.get()
             password = self.password_entry.get()
-            """if not self.valid_pass(password):
+            if not self.valid_pass(password):
                 tk.messagebox.showerror('Error',
                                         'The Password you have submitted is invalid. Password must follow these guidelines:'
                                         '\n• Must contain at least 8 chars'
                                         '\n• Must contain 1 uppercase letter, 1 lower case letter and 1 digit'
                                         '\n• Password cannot contain the following chars: ~-.:%')
-                return"""
+                return
             to_send = f'SIGNUP|{self.username}|{password}'
             send_with_size(self.cli_s, to_send)
             result = recv_by_size(self.cli_s)
@@ -788,13 +787,13 @@ class Login(ctk.CTkFrame):
             try:
                 self.username = self.username_entry.get()
                 password = self.password_entry.get()
-                """if not self.valid_pass(password):
+                if not self.valid_pass(password):
                     messagebox.showerror('Error',
                                             'The Password you have submitted is invalid. Password must follow these guidelines:'
                                             '\n• Must contain at least 8 chars'
                                             '\n• Must contain 1 uppercase letter, 1 lower case letter and 1 digit'
                                             '\n• Password cannot contain the following chars: ~-.:%')
-                    return"""
+                    return
                 to_send = f"LOGINC|{self.username}|{password}"
                 send_with_size(self.cli_s, to_send)
                 # Receive authentication result from server
@@ -949,7 +948,6 @@ def udp_file_send(udp_sock, fullname, fsize, addr):
             try:
                 udp_sock.sendto(bin_data, addr)
                 if DEBUG and LOG_ALL:
-                    pass
                     udp_log("server", "Just sent part %d file with %d bytes pos = %d header %s " % (
                         pack_cnt, len(bin_data), pos, bin_data[:18]))
                 pack_cnt += 1
@@ -999,6 +997,8 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
         saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size)
 
         if saved:
+            if os.path.getsize(os.path.join(cli_path, fn)) != size:
+                print('the size of file is not expected')
             check_md5 = hashlib.md5(open(os.path.join(cli_path, fn), 'rb').read()).hexdigest()
             if check_md5 == md5:
                 new_song = Song(md5, fn, song_name, artist, genre, USERNAME, size=size)
@@ -1006,10 +1006,6 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
                 client_orm.add_song(new_song)
             else:
                 print('md5 of file is wrong', check_md5, md5)
-            if os.path.getsize(os.path.join(cli_path, fn)) != size:
-                print('the size of file is not expected')
-
-
     else:
         if DEBUG:
             udp_log('client', "Send failed or size = 0")
@@ -1041,7 +1037,7 @@ def udp_file_recv(udp_sock, fullname, size):
                 if rcv_data == b"":
                     return False
                 data += rcv_data
-            if data == "":
+            if data == b"":
                 return False
             if not file_open:
                 f_write = open(fullname, 'wb')

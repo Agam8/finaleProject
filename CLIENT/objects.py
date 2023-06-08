@@ -1,6 +1,6 @@
 class User(object):
-    def __init__(self, id, username, password, current_ip, is_logged):
-        self.id = id
+    def __init__(self, salt, username, password, current_ip, is_logged):
+        self.salt = salt
         self.username = username
         self.password = password
         self.current_ip = current_ip
@@ -37,12 +37,19 @@ class Token():
         self.token = token
         self.start_time = start_time
         self.ack = False
+        self.handling = False
 
     def is_ack(self):
         return self.ack
 
     def set_ack(self):
         self.ack = True
+
+    def in_handle(self):
+        return self.handling
+
+    def set_handle(self):
+        self.handling = True
 
     def __str__(self):
         return self.token + "~" + str(self.start_time)

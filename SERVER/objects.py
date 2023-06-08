@@ -1,6 +1,6 @@
 class User(object):
-    def __init__(self, id, username, password, current_ip, is_logged):
-        self.id = id
+    def __init__(self, salt, username, password, current_ip, is_logged):
+        self.salt = salt
         self.username = username
         self.password = password
         self.current_ip = current_ip
