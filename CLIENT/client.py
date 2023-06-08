@@ -183,9 +183,12 @@ class MainApp(ctk.CTkFrame):
             print("Run udp client to download the file " + fname + " from " + fip)
             udp_cli.join()
             if md5 in local_files.keys():
-                messagebox.showinfo('Download Status', f'{fname} downloaded succesfully from {fip}')
+                messagebox.showinfo('Download Status', f'{fname} downloaded successfully from {fip}')
             else:
-                messagebox.showerror('Download Status', f"{fname} couldn't be downloaded. Please Try again later")
+                messagebox.showerror('Download Status', f"{fname} couldn't be downloaded. Please Try again")
+                if os.path.exists(os.path.join(CLI_PATH,fname)):
+                    os.remove(os.path.join(CLI_PATH,fname))
+
 
         elif action == "SENDTK":  # server sends to listening client
             token = fields[0]
@@ -974,7 +977,7 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
     global local_files
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     addr = (ip, UDP_PORT)
-    # udp_sock.settimeout(15)
+    udp_sock.settimeout(20)
     send_ok = False
 
     to_send = "FRQ|" + md5 + "|" + str(size) + "|" + token
@@ -996,13 +999,16 @@ def udp_client(cli_path, ip, fn, size, token, song_name, artist, genre, md5):
         saved = udp_file_recv(udp_sock, os.path.join(cli_path, fn), size)
 
         if saved:
-            check_md5 = hashlib.md5(open(fn, 'rb').read()).hexdigest()
+            check_md5 = hashlib.md5(open(os.path.join(cli_path, fn), 'rb').read()).hexdigest()
             if check_md5 == md5:
                 new_song = Song(md5, fn, song_name, artist, genre, USERNAME, size=size)
                 local_files[md5] = new_song
                 client_orm.add_song(new_song)
             else:
                 print('md5 of file is wrong', check_md5, md5)
+            if os.path.getsize(os.path.join(cli_path, fn)) != size:
+                print('the size of file is not expected')
+
 
     else:
         if DEBUG:
